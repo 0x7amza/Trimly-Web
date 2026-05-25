@@ -1,86 +1,29 @@
 // Trimly API Client with built-in Mock Mode
 // Mapped to backend-api.md endpoints and schemas
 
-export interface BusinessHours {
-  day: number; // 0-6
-  open: string; // "HH:MM"
-  close: string; // "HH:MM"
-  isClosed: boolean;
-}
+import type {
+  BusinessHours,
+  Subscription,
+  Barber,
+  Shop,
+  ShopWithBarbers,
+  Customer,
+  Service,
+  Booking,
+  Product
+} from "@/types/api";
 
-export interface Subscription {
-  plan: "MONTHLY" | "YEARLY" | "NONE";
-  status: "TRIALING" | "ACTIVE" | "PAST_DUE" | "CANCELLED" | "EXPIRED";
-  stripeCustomerId?: string;
-  stripeSubscriptionId?: string;
-  currentPeriodEnd?: string;
-  trialEndsAt?: string;
-  gracePeriodEndsAt?: string;
-}
-
-export interface Barber {
-  id: string;
-  clerkId: string;
-  shopId: string;
-  role: "OWNER" | "BARBER";
-  name: string;
-  email: string;
-  shopName?: string;
-  slug?: string;
-  phone?: string;
-  address?: string;
-  bio?: string;
-  businessHours?: BusinessHours[];
-}
-
-export interface Shop {
-  id: string;
-  ownerId: string;
-  name: string;
-  slug: string;
-  subscription: Subscription;
-  maxBarbersIncluded: number;
-}
-
-export interface ShopWithBarbers {
-  shop: Shop;
-  barbers: Barber[];
-}
-
-export interface Customer {
-  id: string;
-  phone: string;
-  email: string;
-  name: string;
-}
-
-export interface Service {
-  id: string;
-  barberId: string;
-  name: string;
-  price: number; // in pence (e.g. 2500 = £25.00)
-  durationMinutes: number;
-  isActive: boolean;
-}
-
-export interface Booking {
-  id: string;
-  barberId: string;
-  customerId?: string;
-  serviceId: string;
-  serviceSnapshot: {
-    name: string;
-    price: number;
-    durationMinutes: number;
-  };
-  startTime: string; // ISO string
-  endTime: string; // ISO string
-  status: "PENDING" | "CONFIRMED" | "CANCELLED" | "COMPLETED";
-  paymentStatus: "PENDING" | "PAID" | "REFUNDED";
-  paymentIntentId?: string;
-  type: "ONLINE" | "MANUAL";
-  notes?: string;
-}
+export type {
+  BusinessHours,
+  Subscription,
+  Barber,
+  Shop,
+  ShopWithBarbers,
+  Customer,
+  Service,
+  Booking,
+  Product
+};
 
 // Initial Mock Database
 const DEFAULT_BUSINESS_HOURS = [
@@ -107,6 +50,132 @@ const INITIAL_SHOPS: Shop[] = [
       currentPeriodEnd: new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString(),
     },
     maxBarbersIncluded: 5,
+    profileImage: "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&w=300&h=300&q=80",
+    profilePicture: "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&w=300&h=300&q=80",
+    images: [
+      "https://images.unsplash.com/photo-1621605815971-fbc98d665033?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1595425970377-c9703cf48b6d?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1605497746444-ac9dbd34f196?auto=format&fit=crop&w=800&q=80"
+    ],
+    galleryPictures: [
+      "https://images.unsplash.com/photo-1621605815971-fbc98d665033?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1595425970377-c9703cf48b6d?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1605497746444-ac9dbd34f196?auto=format&fit=crop&w=800&q=80"
+    ],
+    industryType: "Barber",
+    city: "London",
+    address: "123 Barber St, Shoreditch, London E1 6RF",
+    businessHours: DEFAULT_BUSINESS_HOURS,
+  },
+  {
+    id: "shop_2",
+    ownerId: "user_luxe",
+    name: "Luxe Hairdresser",
+    slug: "luxe-hairdresser",
+    subscription: {
+      plan: "MONTHLY",
+      status: "ACTIVE",
+    },
+    maxBarbersIncluded: 5,
+    profileImage: "https://images.unsplash.com/photo-1562322140-8baeececf3df?auto=format&fit=crop&w=300&h=300&q=80",
+    profilePicture: "https://images.unsplash.com/photo-1562322140-8baeececf3df?auto=format&fit=crop&w=300&h=300&q=80",
+    images: [
+      "https://images.unsplash.com/photo-1562322140-8baeececf3df?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1600334089648-b0d9d3028eb2?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1595425970377-c9703cf48b6d?auto=format&fit=crop&w=800&q=80"
+    ],
+    galleryPictures: [
+      "https://images.unsplash.com/photo-1562322140-8baeececf3df?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1600334089648-b0d9d3028eb2?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1595425970377-c9703cf48b6d?auto=format&fit=crop&w=800&q=80"
+    ],
+    industryType: "Hairdresser",
+    city: "London"
+  },
+  {
+    id: "shop_3",
+    ownerId: "user_bella",
+    name: "Bella Nails & Spa",
+    slug: "bella-nails",
+    subscription: {
+      plan: "MONTHLY",
+      status: "ACTIVE",
+    },
+    maxBarbersIncluded: 3,
+    profileImage: "https://images.unsplash.com/photo-1604654894610-df63bc536371?auto=format&fit=crop&w=300&h=300&q=80",
+    profilePicture: "https://images.unsplash.com/photo-1604654894610-df63bc536371?auto=format&fit=crop&w=300&h=300&q=80",
+    images: [
+      "https://images.unsplash.com/photo-1604654894610-df63bc536371?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1632345031435-8797b2d58045?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1600334129128-685c5582fd35?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?auto=format&fit=crop&w=800&q=80"
+    ],
+    galleryPictures: [
+      "https://images.unsplash.com/photo-1604654894610-df63bc536371?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1632345031435-8797b2d58045?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1600334129128-685c5582fd35?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?auto=format&fit=crop&w=800&q=80"
+    ],
+    industryType: "Manicure",
+    city: "Manchester"
+  },
+  {
+    id: "shop_4",
+    ownerId: "user_glow",
+    name: "Glow Beauty Lounge",
+    slug: "glow-beauty",
+    subscription: {
+      plan: "MONTHLY",
+      status: "ACTIVE",
+    },
+    maxBarbersIncluded: 4,
+    profileImage: "https://images.unsplash.com/photo-1544161515-4ab6ce6db874?auto=format&fit=crop&w=300&h=300&q=80",
+    profilePicture: "https://images.unsplash.com/photo-1544161515-4ab6ce6db874?auto=format&fit=crop&w=300&h=300&q=80",
+    images: [
+      "https://images.unsplash.com/photo-1544161515-4ab6ce6db874?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1600334089648-b0d9d3028eb2?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1595425970377-c9703cf48b6d?auto=format&fit=crop&w=800&q=80"
+    ],
+    galleryPictures: [
+      "https://images.unsplash.com/photo-1544161515-4ab6ce6db874?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1600334089648-b0d9d3028eb2?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1595425970377-c9703cf48b6d?auto=format&fit=crop&w=800&q=80"
+    ],
+    industryType: "Beauty Salon",
+    city: "London"
+  },
+  {
+    id: "shop_5",
+    ownerId: "user_zen",
+    name: "Zen Beauty & Wellness",
+    slug: "zen-beauty",
+    subscription: {
+      plan: "MONTHLY",
+      status: "ACTIVE",
+    },
+    maxBarbersIncluded: 5,
+    profileImage: "https://images.unsplash.com/photo-1600334129128-685c5582fd35?auto=format&fit=crop&w=300&h=300&q=80",
+    profilePicture: "https://images.unsplash.com/photo-1600334129128-685c5582fd35?auto=format&fit=crop&w=300&h=300&q=80",
+    images: [
+      "https://images.unsplash.com/photo-1600334129128-685c5582fd35?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1544161515-4ab6ce6db874?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1621605815971-fbc98d665033?auto=format&fit=crop&w=800&q=80"
+    ],
+    galleryPictures: [
+      "https://images.unsplash.com/photo-1600334129128-685c5582fd35?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1544161515-4ab6ce6db874?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1621605815971-fbc98d665033?auto=format&fit=crop&w=800&q=80"
+    ],
+    industryType: "Beauty Salon",
+    city: "Bristol"
   },
 ];
 
@@ -124,6 +193,9 @@ const INITIAL_BARBERS: Barber[] = [
     address: "123 Barber St, London",
     bio: "Owner & Lead Barber. Specializes in classic cuts and beard design.",
     businessHours: DEFAULT_BUSINESS_HOURS,
+    profileImage: "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&w=300&h=300&q=80",
+    images: ["https://images.unsplash.com/photo-1621605815971-fbc98d665033?auto=format&fit=crop&w=800&q=80"],
+    city: "London"
   },
   {
     id: "barber_2",
@@ -138,18 +210,137 @@ const INITIAL_BARBERS: Barber[] = [
     address: "123 Barber St, London",
     bio: "Senior Stylist. Master of fades and styling trends.",
     businessHours: DEFAULT_BUSINESS_HOURS,
+    profileImage: "https://images.unsplash.com/photo-1544161515-4ab6ce6db874?auto=format&fit=crop&w=300&h=300&q=80",
+    images: ["https://images.unsplash.com/photo-1605497746444-ac9dbd34f196?auto=format&fit=crop&w=800&q=80"],
+    city: "London"
+  },
+  {
+    id: "barber_3",
+    clerkId: "user_luxe",
+    shopId: "shop_2",
+    role: "OWNER",
+    name: "Eliza Vance",
+    email: "eliza@example.com",
+    shopName: "Luxe Hairdresser",
+    slug: "luxe-hairdresser",
+    phone: "+447000000001",
+    address: "45 Regent St, London",
+    bio: "Senior Hair Stylist. Color specialist with 12+ years experience.",
+    businessHours: DEFAULT_BUSINESS_HOURS,
+    profileImage: "https://images.unsplash.com/photo-1562322140-8baeececf3df?auto=format&fit=crop&w=300&h=300&q=80",
+    images: ["https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?auto=format&fit=crop&w=800&q=80"],
+    city: "London"
+  },
+  {
+    id: "barber_4",
+    clerkId: "user_bella",
+    shopId: "shop_3",
+    role: "OWNER",
+    name: "Bella Thorne",
+    email: "bella@example.com",
+    shopName: "Bella Nails & Spa",
+    slug: "bella-nails",
+    phone: "+447000000002",
+    address: "12 Piccadilly, Manchester",
+    bio: "Gel nail design expert and nail care specialist.",
+    businessHours: DEFAULT_BUSINESS_HOURS,
+    profileImage: "https://images.unsplash.com/photo-1604654894610-df63bc536371?auto=format&fit=crop&w=300&h=300&q=80",
+    images: ["https://images.unsplash.com/photo-1632345031435-8797b2d58045?auto=format&fit=crop&w=800&q=80"],
+    city: "Manchester"
+  },
+  {
+    id: "barber_5",
+    clerkId: "user_glow",
+    shopId: "shop_4",
+    role: "OWNER",
+    name: "Sarah Jenkins",
+    email: "sarah@example.com",
+    shopName: "Glow Beauty Lounge",
+    slug: "glow-beauty",
+    phone: "+447000000003",
+    address: "78 Kensington Rd, London",
+    bio: "Experienced esthetician & high-end skincare consultant.",
+    businessHours: DEFAULT_BUSINESS_HOURS,
+    profileImage: "https://images.unsplash.com/photo-1544161515-4ab6ce6db874?auto=format&fit=crop&w=300&h=300&q=80",
+    images: ["https://images.unsplash.com/photo-1600334089648-b0d9d3028eb2?auto=format&fit=crop&w=800&q=80"],
+    city: "London"
+  },
+  {
+    id: "barber_6",
+    clerkId: "user_zen",
+    shopId: "shop_5",
+    role: "OWNER",
+    name: "David Miller",
+    email: "david@example.com",
+    shopName: "Zen Beauty & Wellness",
+    slug: "zen-beauty",
+    phone: "+447000000004",
+    address: "8 Broad St, Bristol",
+    bio: "Licensed beauty therapist & wellness specialist.",
+    businessHours: DEFAULT_BUSINESS_HOURS,
+    profileImage: "https://images.unsplash.com/photo-1600334129128-685c5582fd35?auto=format&fit=crop&w=300&h=300&q=80",
+    images: ["https://images.unsplash.com/photo-1544161515-4ab6ce6db874?auto=format&fit=crop&w=800&q=80"],
+    city: "Bristol"
   },
 ];
 
 const INITIAL_SERVICES: Service[] = [
-  { id: "serv_1", barberId: "user_john", name: "Men Haircut", price: 2500, durationMinutes: 30, isActive: true },
-  { id: "serv_2", barberId: "user_john", name: "Beard Trim", price: 1500, durationMinutes: 15, isActive: true },
-  { id: "serv_3", barberId: "user_john", name: "Haircut & Beard", price: 3500, durationMinutes: 45, isActive: true },
-  { id: "serv_4", barberId: "user_jane", name: "Modern Skinfade", price: 3000, durationMinutes: 30, isActive: true },
-  { id: "serv_5", barberId: "user_jane", name: "Beard & Grooming", price: 1800, durationMinutes: 20, isActive: true },
+  { id: "serv_1", barberId: "user_john", name: "Men Haircut", price: 2500, durationMinutes: 30, isActive: true, category: "Haircuts", categoryName: "Haircuts" },
+  { id: "serv_2", barberId: "user_john", name: "Beard Trim", price: 1500, durationMinutes: 15, isActive: true, category: "Beard Grooming", categoryName: "Beard Grooming" },
+  { id: "serv_3", barberId: "user_john", name: "Haircut & Beard", price: 3500, durationMinutes: 45, isActive: true, category: "Combo Packages", categoryName: "Combo Packages" },
+  { id: "serv_4", barberId: "user_jane", name: "Modern Skinfade", price: 3000, durationMinutes: 30, isActive: true, category: "Haircuts", categoryName: "Haircuts" },
+  { id: "serv_5", barberId: "user_jane", name: "Beard & Grooming", price: 1800, durationMinutes: 20, isActive: true, category: "Beard Grooming", categoryName: "Beard Grooming" },
+  { id: "serv_6", barberId: "user_luxe", name: "Women's Cut & Blow Dry", price: 5500, durationMinutes: 60, isActive: true, category: "Hair Styling", categoryName: "Hair Styling" },
+  { id: "serv_7", barberId: "user_luxe", name: "Balayage Styling", price: 12000, durationMinutes: 120, isActive: true, category: "Coloring", categoryName: "Coloring" },
+  { id: "serv_8", barberId: "user_bella", name: "Gel Manicure", price: 3500, durationMinutes: 45, isActive: true, category: "Manicure", categoryName: "Manicure" },
+  { id: "serv_9", barberId: "user_bella", name: "Pedicure Deluxe", price: 4000, durationMinutes: 50, isActive: true, category: "Pedicure", categoryName: "Pedicure" },
+  { id: "serv_10", barberId: "user_glow", name: "Facial Treatment", price: 4500, durationMinutes: 40, isActive: true, category: "Skincare", categoryName: "Skincare" },
+  { id: "serv_11", barberId: "user_glow", name: "Eyebrow Shape & Tint", price: 2000, durationMinutes: 20, isActive: true, category: "Eyebrows", categoryName: "Eyebrows" },
+  { id: "serv_12", barberId: "user_zen", name: "Deep Tissue Massage", price: 6500, durationMinutes: 60, isActive: true, category: "Massages", categoryName: "Massages" },
+  { id: "serv_13", barberId: "user_zen", name: "Aromatherapy Massage", price: 7000, durationMinutes: 60, isActive: true, category: "Massages", categoryName: "Massages" },
 ];
 
 // Helper to generate some bookings for the current date
+// ─── Initial Products seed (per shop_1) ──────────────────────────────────
+const INITIAL_PRODUCTS: Product[] = [
+  {
+    id: "prod_1",
+    shopId: "shop_1",
+    name: "Trimly Pomade (Ultra Hold)",
+    description: "Premium strong-hold pomade for sleek and structured classic styles.",
+    price: 1400,
+    imageUrl: "https://images.unsplash.com/photo-1598440947619-2c35fc9aa908?auto=format&fit=crop&w=400&h=400&q=80",
+    isActive: true,
+  },
+  {
+    id: "prod_2",
+    shopId: "shop_1",
+    name: "Sandalwood Beard & Face Oil",
+    description: "Organic jojoba and argan oils blended with warm sandalwood aroma.",
+    price: 1600,
+    imageUrl: "https://images.unsplash.com/photo-1626015276681-2b44a2425026?auto=format&fit=crop&w=400&h=400&q=80",
+    isActive: true,
+  },
+  {
+    id: "prod_3",
+    shopId: "shop_1",
+    name: "Hydrating Tea Tree Shampoo",
+    description: "Refreshing scalp therapy shampoo infused with tea tree extracts.",
+    price: 1850,
+    imageUrl: "https://images.unsplash.com/photo-1535585209827-a15fcdbc4c2d?auto=format&fit=crop&w=400&h=400&q=80",
+    isActive: true,
+  },
+  {
+    id: "prod_4",
+    shopId: "shop_1",
+    name: "Matte Texture Styling Clay",
+    description: "High-definition matte clay for a natural and textured modern look.",
+    price: 1500,
+    imageUrl: "https://images.unsplash.com/photo-1599351431202-1e0f0137899a?auto=format&fit=crop&w=400&h=400&q=80",
+    isActive: true,
+  },
+];
+
 const generateMockBookings = (): Booking[] => {
   const today = new Date();
   const dateStr = today.toISOString().split("T")[0]; // YYYY-MM-DD
@@ -223,6 +414,17 @@ class MockDb {
   getBookings() { return this.get("trimly_bookings", generateMockBookings()); }
   setBookings(data: Booking[]) { this.set("trimly_bookings", data); }
 
+  // Products are stored per-shop to enable per-shop isolation
+  getProducts(shopId: string): Product[] {
+    const allProducts = this.get<Product[]>("trimly_products_all", INITIAL_PRODUCTS);
+    return allProducts.filter(p => p.shopId === shopId);
+  }
+  setProducts(shopId: string, shopProducts: Product[]) {
+    const allProducts = this.get<Product[]>("trimly_products_all", INITIAL_PRODUCTS);
+    const others = allProducts.filter(p => p.shopId !== shopId);
+    this.set("trimly_products_all", [...others, ...shopProducts]);
+  }
+
   getCurrentCustomer() { return this.get<Customer | null>("trimly_curr_customer", null); }
   setCurrentCustomer(cust: Customer | null) { this.set("trimly_curr_customer", cust); }
 
@@ -245,7 +447,30 @@ const USE_MOCK = true; // Hardcoded default to ensure it works smoothly in user'
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers = new Headers(options.headers);
-  const token = typeof window !== "undefined" ? localStorage.getItem("trimly_auth_token") : null;
+  
+  let token: string | null = null;
+  const isB2B = path.startsWith("/barbers") || 
+                path.startsWith("/services") || 
+                path.startsWith("/shops") || 
+                path.startsWith("/statistics") || 
+                path.startsWith("/bookings/manual") || 
+                path.startsWith("/bookings/me/barber");
+
+  if (isB2B && typeof window !== "undefined") {
+    const clerk = (window as any).Clerk;
+    if (clerk?.session) {
+      try {
+        token = await clerk.session.getToken();
+      } catch (err) {
+        console.error("Failed to retrieve Clerk B2B token:", err);
+      }
+    }
+  }
+
+  if (!token && typeof window !== "undefined") {
+    token = localStorage.getItem("trimly_auth_token");
+  }
+
   if (token) {
     headers.set("Authorization", `Bearer ${token}`);
   }
@@ -398,7 +623,7 @@ export const api = {
   // 3. SERVICES
   // ==========================================
   services: {
-    create: async (payload: { name: string; price: number; durationMinutes: number }): Promise<{ success: boolean; data: Service }> => {
+    create: async (payload: { name: string; price: number; durationMinutes: number; category?: string }): Promise<{ success: boolean; data: Service }> => {
       if (USE_MOCK) {
         const active = mockDb.getActiveUser();
         const newServ: Service = {
@@ -408,6 +633,7 @@ export const api = {
           price: payload.price,
           durationMinutes: payload.durationMinutes,
           isActive: true,
+          category: payload.category,
         };
         mockDb.setServices([...mockDb.getServices(), newServ]);
         return { success: true, data: newServ };
@@ -426,7 +652,7 @@ export const api = {
       return request(`/services/barber/${clerkId}`);
     },
 
-    update: async (id: string, payload: { name?: string; price?: number; durationMinutes?: number }): Promise<{ success: boolean; data: Service }> => {
+    update: async (id: string, payload: { name?: string; price?: number; durationMinutes?: number; category?: string }): Promise<{ success: boolean; data: Service }> => {
       if (USE_MOCK) {
         const services = mockDb.getServices();
         const idx = services.findIndex(s => s.id === id);
@@ -462,9 +688,17 @@ export const api = {
   bookings: {
     getAvailability: async (clerkId: string, serviceId: string, dateStr: string): Promise<{ success: boolean; data: string[] }> => {
       if (USE_MOCK) {
-        // Mocking timeline slots: 09:00 to 18:00 in 15 minute steps.
-        // Remove slots that overlap with existing bookings.
-        const bookings = mockDb.getBookings().filter(b => b.barberId === clerkId && b.status !== "CANCELLED" && b.startTime.startsWith(dateStr));
+        // Query ±1 day window to capture bookings crossing midnight or shifted timezone boundaries
+        const startOfDay = new Date(`${dateStr}T00:00:00.000Z`).getTime();
+        const endOfDay = new Date(`${dateStr}T23:59:59.999Z`).getTime();
+
+        const bookings = mockDb.getBookings().filter(b => {
+          if (b.barberId !== clerkId || b.status === "CANCELLED") return false;
+          const bStart = new Date(b.startTime).getTime();
+          const bEnd = new Date(b.endTime).getTime();
+          return bStart <= endOfDay && bEnd >= startOfDay;
+        });
+
         const services = mockDb.getServices();
         const service = services.find(s => s.id === serviceId);
         const duration = service ? service.durationMinutes : 30;
@@ -496,7 +730,7 @@ export const api = {
       return request(`/bookings/barber/${clerkId}/availability?serviceId=${serviceId}&date=${dateStr}`);
     },
 
-    createOnline: async (payload: { barberId: string; serviceId: string; startTime: string }): Promise<{ success: boolean; data: { booking: Booking; clientSecret: string } }> => {
+    createOnline: async (payload: { barberId: string; serviceId: string; startTime: string; paymentOption?: "ARRIVE" | "STRIPE" }): Promise<{ success: boolean; data: { booking: Booking; clientSecret: string } }> => {
       if (USE_MOCK) {
         const services = mockDb.getServices();
         const service = services.find(s => s.id === payload.serviceId);
@@ -517,8 +751,8 @@ export const api = {
           startTime: payload.startTime,
           endTime,
           status: "CONFIRMED",
-          paymentStatus: "PAID",
-          paymentIntentId: "pi_mock_" + Math.random().toString(36).substr(2, 5),
+          paymentStatus: payload.paymentOption === "ARRIVE" ? "PENDING" : "PAID",
+          paymentIntentId: payload.paymentOption === "ARRIVE" ? undefined : "pi_mock_" + Math.random().toString(36).substr(2, 5),
           type: "ONLINE",
         };
 
@@ -537,21 +771,22 @@ export const api = {
       });
     },
 
-    createManual: async (payload: { serviceId: string; startTime: string; customerName?: string; customerPhone?: string; notes?: string }): Promise<{ success: boolean; data: Booking }> => {
+    createManual: async (payload: { serviceId: string; startTime: string; customerName?: string; customerPhone?: string; notes?: string; durationMinutes?: number }): Promise<{ success: boolean; data: Booking }> => {
       if (USE_MOCK) {
         const active = mockDb.getActiveUser();
         const services = mockDb.getServices();
         const service = services.find(s => s.id === payload.serviceId);
-        const duration = service ? service.durationMinutes : 30;
+        const duration = payload.durationMinutes || (service ? service.durationMinutes : 30);
         const endTime = new Date(new Date(payload.startTime).getTime() + duration * 60 * 1000).toISOString();
 
+        const isBlocked = payload.notes?.startsWith("[BLOCKED]");
         const newBooking: Booking = {
           id: "book_" + Math.random().toString(36).substr(2, 9),
           barberId: active.clerkId,
           serviceId: payload.serviceId,
           serviceSnapshot: {
-            name: service ? service.name : "Men Haircut",
-            price: service ? service.price : 2500,
+            name: isBlocked ? "Blocked Time" : (service ? service.name : "Men Haircut"),
+            price: isBlocked ? 0 : (service ? service.price : 2500),
             durationMinutes: duration,
           },
           startTime: payload.startTime,
@@ -613,11 +848,16 @@ export const api = {
     create: async (name: string): Promise<{ success: boolean; data: Shop }> => {
       if (USE_MOCK) {
         const active = mockDb.getActiveUser();
+        const slug = name.toLowerCase().replace(/ /g, "-");
+        const RESERVED_SLUGS = ["dashboard", "billing", "pricing", "api", "login", "admin", "settings", "register", "auth"];
+        if (RESERVED_SLUGS.includes(slug)) {
+          throw new Error("This salon slug matches a system-reserved route. Please choose another name.");
+        }
         const newShop: Shop = {
           id: "shop_" + Math.random().toString(36).substr(2, 9),
           ownerId: active.clerkId,
           name,
-          slug: name.toLowerCase().replace(/ /g, "-"),
+          slug,
           subscription: { plan: "MONTHLY", status: "ACTIVE" },
           maxBarbersIncluded: 5,
         };
@@ -688,6 +928,22 @@ export const api = {
         return { success: true, data: { shop, barbers } };
       }
       return request(`/shops/${slug}`);
+    },
+    
+    updateMe: async (payload: Partial<Shop>): Promise<{ success: boolean; data: Shop }> => {
+      if (USE_MOCK) {
+        const active = mockDb.getActiveUser();
+        const shops = mockDb.getShops();
+        const idx = shops.findIndex(s => s.ownerId === active.clerkId || s.id === mockDb.getBarbers().find(b => b.clerkId === active.clerkId)?.shopId);
+        if (idx === -1) throw new Error("Shop not found");
+        shops[idx] = { ...shops[idx], ...payload };
+        mockDb.setShops(shops);
+        return { success: true, data: shops[idx] };
+      }
+      return request("/shops/me", {
+        method: "PUT",
+        body: JSON.stringify(payload),
+      });
     },
   },
 
@@ -772,4 +1028,233 @@ export const api = {
       return request(`/statistics/barber/${barberId || ""}`);
     },
   },
+
+  // ==========================================
+  // 8. SEARCH & MEDIA UPLOAD
+  // ==========================================
+  search: async (params: {
+    city?: string;
+    industryType?: string;
+    searchQuery?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<{
+    success: boolean;
+    data: {
+      results: Array<{
+        type: "shop" | "barber";
+        id: string;
+        name: string;
+        slug: string;
+        images?: string[];
+        profileImage?: string;
+        industryType?: string;
+        city?: string;
+      }>;
+      pagination: {
+        total: number;
+        page: number;
+        limit: number;
+        totalPages: number;
+      };
+    };
+  }> => {
+    if (USE_MOCK) {
+      const shops = mockDb.getShops();
+      const barbers = mockDb.getBarbers();
+      const results: any[] = [];
+
+      // Filter shops
+      shops.forEach(shop => {
+        let match = true;
+        if (params.city && shop.city?.toLowerCase() !== params.city.toLowerCase()) {
+          match = false;
+        }
+        if (params.industryType && shop.industryType !== params.industryType) {
+          match = false;
+        }
+        if (params.searchQuery && !shop.name.toLowerCase().includes(params.searchQuery.toLowerCase())) {
+          match = false;
+        }
+        if (match) {
+          results.push({
+            type: "shop",
+            id: shop.id,
+            name: shop.name,
+            slug: shop.slug,
+            images: shop.images,
+            profileImage: shop.profileImage,
+            industryType: shop.industryType,
+            city: shop.city
+          });
+        }
+      });
+
+      // Filter barbers (if industryType is "Barber" or not specified)
+      const isBarberIndustry = !params.industryType || params.industryType === "Barber";
+      if (isBarberIndustry) {
+        barbers.forEach(barber => {
+          let match = true;
+          if (params.city && barber.city?.toLowerCase() !== params.city.toLowerCase() && !barber.address?.toLowerCase().includes(params.city.toLowerCase())) {
+            match = false;
+          }
+          if (params.searchQuery && !barber.name.toLowerCase().includes(params.searchQuery.toLowerCase())) {
+            match = false;
+          }
+          if (match) {
+            results.push({
+              type: "barber",
+              id: barber.id,
+              name: barber.name,
+              slug: barber.slug,
+              images: barber.images,
+              profileImage: barber.profileImage,
+              industryType: "Barber",
+              city: barber.city || "London"
+            });
+          }
+        });
+      }
+
+      const page = params.page || 1;
+      const limit = params.limit || 10;
+      const total = results.length;
+      const totalPages = Math.ceil(total / limit);
+      const paginatedResults = results.slice((page - 1) * limit, page * limit);
+
+      return {
+        success: true,
+        data: {
+          results: paginatedResults,
+          pagination: {
+            total,
+            page,
+            limit,
+            totalPages
+          }
+        }
+      };
+    }
+
+    const query = new URLSearchParams();
+    if (params.city) query.set("city", params.city);
+    if (params.industryType) query.set("industryType", params.industryType);
+    if (params.searchQuery) query.set("searchQuery", params.searchQuery);
+    if (params.page) query.set("page", params.page.toString());
+    if (params.limit) query.set("limit", params.limit.toString());
+
+    return request(`/search?${query.toString()}`);
+  },
+
+  upload: async (file: File): Promise<{ success: boolean; data: { url: string; filename: string; contentType: string; size: number } }> => {
+    if (USE_MOCK) {
+      const active = mockDb.getActiveUser();
+      const mockUrl = `https://cdn.trimly.app/uploads/barbers/${active.clerkId}/images/${Math.random().toString(36).substr(2, 9)}_${file.name}`;
+      return {
+        success: true,
+        data: {
+          url: mockUrl,
+          filename: file.name,
+          contentType: file.type,
+          size: file.size
+        }
+      };
+    }
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const headers = new Headers();
+    if (typeof window !== "undefined") {
+      const clerk = (window as any).Clerk;
+      if (clerk?.session) {
+        try {
+          const token = await clerk.session.getToken();
+          if (token) headers.set("Authorization", `Bearer ${token}`);
+        } catch (err) {
+          console.error("Failed to retrieve Clerk token for upload:", err);
+        }
+      }
+    }
+    const response = await fetch(`/api/v1/upload`, {
+      method: "POST",
+      body: formData,
+      headers
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || "File upload failed");
+    }
+    return data;
+  },
+
+  // ==========================================
+  // 9. PRODUCTS MARKETPLACE (Per-Shop)
+  // ==========================================
+  products: {
+    getShopProducts: async (shopId: string): Promise<{ success: boolean; data: Product[] }> => {
+      if (USE_MOCK) {
+        const products = mockDb.getProducts(shopId);
+        return { success: true, data: products };
+      }
+      return request(`/shops/${shopId}/products`);
+    },
+
+    create: async (payload: {
+      shopId: string;
+      name: string;
+      description: string;
+      price: number;
+      imageUrl: string;
+    }): Promise<{ success: boolean; data: Product }> => {
+      if (USE_MOCK) {
+        const products = mockDb.getProducts(payload.shopId);
+        const newProd: Product = {
+          id: "prod_" + Math.random().toString(36).substr(2, 9),
+          shopId: payload.shopId,
+          name: payload.name,
+          description: payload.description,
+          price: payload.price,
+          imageUrl: payload.imageUrl,
+          isActive: true,
+        };
+        mockDb.setProducts(payload.shopId, [...products, newProd]);
+        return { success: true, data: newProd };
+      }
+      return request(`/shops/${payload.shopId}/products`, {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+    },
+
+    update: async (id: string, shopId: string, payload: Partial<{
+      name: string;
+      description: string;
+      price: number;
+      imageUrl: string;
+      isActive: boolean;
+    }>): Promise<{ success: boolean; data: Product }> => {
+      if (USE_MOCK) {
+        const products = mockDb.getProducts(shopId);
+        const updated = products.map(p => p.id === id ? { ...p, ...payload } : p);
+        mockDb.setProducts(shopId, updated);
+        const result = updated.find(p => p.id === id)!;
+        return { success: true, data: result };
+      }
+      return request(`/shops/${shopId}/products/${id}`, {
+        method: "PUT",
+        body: JSON.stringify(payload),
+      });
+    },
+
+    delete: async (id: string, shopId: string): Promise<{ success: boolean }> => {
+      if (USE_MOCK) {
+        const products = mockDb.getProducts(shopId);
+        mockDb.setProducts(shopId, products.filter(p => p.id !== id));
+        return { success: true };
+      }
+      return request(`/shops/${shopId}/products/${id}`, { method: "DELETE" });
+    },
+  },
 };
+

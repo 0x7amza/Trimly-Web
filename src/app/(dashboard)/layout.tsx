@@ -5,11 +5,21 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { B2BProviders, useB2BAuth } from "@/components/providers";
 import { useUser, UserButton, SignIn } from "@clerk/nextjs";
+import { 
+  Calendar, 
+  Scissors, 
+  TrendingUp, 
+  Users, 
+  CreditCard, 
+  Settings as SettingsIcon,
+  Home,
+  ShoppingBag
+} from "lucide-react";
 
 function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { activeBarber, shop, role, loginAs, isMockMode } = useB2BAuth();
+  const { activeBarber, shop, role } = useB2BAuth();
 
   // Subscription Guard: check if subscription is cancelled/expired/none
   const hasSubscription = shop && ["ACTIVE", "TRIALING"].includes(shop.subscription?.status || "");
@@ -17,11 +27,13 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
 
   // Nav items based on role
   const navItems = [
-    { label: "Calendar", path: "/dashboard/calendar", icon: "📅", roles: ["OWNER", "BARBER"] },
-    { label: "Services", path: "/dashboard/services", icon: "✂️", roles: ["OWNER", "BARBER"] },
-    { label: "Analytics", path: "/dashboard/analytics", icon: "📈", roles: ["OWNER", "BARBER"] },
-    { label: "Staff", path: "/dashboard/staff", icon: "👥", roles: ["OWNER"] },
-    { label: "Billing", path: "/dashboard/billing", icon: "💳", roles: ["OWNER"] },
+    { label: "Calendar", path: "/dashboard/calendar", icon: Calendar, roles: ["OWNER", "BARBER"] },
+    { label: "Services", path: "/dashboard/services", icon: Scissors, roles: ["OWNER", "BARBER"] },
+    { label: "Products", path: "/dashboard/products", icon: ShoppingBag, roles: ["OWNER", "BARBER"] },
+    { label: "Analytics", path: "/dashboard/analytics", icon: TrendingUp, roles: ["OWNER", "BARBER"] },
+    { label: "Staff", path: "/dashboard/staff", icon: Users, roles: ["OWNER"] },
+    { label: "Billing", path: "/dashboard/billing", icon: CreditCard, roles: ["OWNER"] },
+    { label: "Settings", path: "/dashboard/settings", icon: SettingsIcon, roles: ["OWNER", "BARBER"] },
   ];
 
   // Filter items based on active role
@@ -58,6 +70,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
           <nav className="p-4 space-y-1">
             {allowedNavItems.map((item) => {
               const active = pathname.startsWith(item.path);
+              const IconComponent = item.icon;
               return (
                 <Link
                   key={item.path}
@@ -68,38 +81,22 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
                       : "text-body-text hover:bg-canvas-soft hover:text-ink"
                   }`}
                 >
-                  <span className="text-lg">{item.icon}</span>
+                  <IconComponent className="w-4 h-4 text-mute-text" />
                   {item.label}
                 </Link>
               );
             })}
+
+            {/* Persistent Back to Home Link inside navigation */}
+            <Link
+              href="/"
+              className="flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm text-body-text hover:bg-canvas-soft hover:text-ink transition-all border border-ink/5 mt-4"
+            >
+              <Home className="w-4 h-4 text-mute-text" />
+              Back to Home / Exit Dashboard
+            </Link>
           </nav>
         </div>
-
-        {/* Demo Switcher Footer */}
-        {isMockMode && (
-          <div className="p-4 border-t border-ink/5 bg-canvas-soft/40 m-4 rounded-xl">
-            <span className="block text-[10px] font-bold text-mute-text uppercase tracking-wider mb-2">
-              B2B Developer Switcher
-            </span>
-            <div className="space-y-1.5">
-              <button
-                onClick={() => loginAs(activeBarber?.clerkId || "user_john")}
-                className="w-full text-left px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-between bg-ink text-white"
-              >
-                <span>Current Clerk Profile</span>
-                <span>👑</span>
-              </button>
-              <button
-                onClick={() => loginAs("barber_2")}
-                className="w-full text-left px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-between bg-canvas text-body-text hover:bg-canvas-soft border border-ink/5"
-              >
-                <span>Jane (Staff Demo)</span>
-                <span>💈</span>
-              </button>
-            </div>
-          </div>
-        )}
       </aside>
 
       {/* Main Content Pane */}
@@ -111,11 +108,6 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
             <span className="text-xs font-bold bg-canvas-soft text-body-text px-2 py-0.5 rounded-md border border-ink/5">
               {role === "OWNER" ? "Owner Admin" : "Barber Staff"}
             </span>
-            {isMockMode && (
-              <span className="text-[10px] font-bold bg-primary-pale text-positive-deep px-2 py-0.5 rounded-full uppercase tracking-wider animate-pulse">
-                Mock Mode
-              </span>
-            )}
           </div>
 
           <div className="flex items-center gap-4">
@@ -128,34 +120,42 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
         </header>
 
         {/* Content Wrapper */}
-        <main className="flex-grow p-8 relative">
+        <main className="flex-grow p-8 relative flex flex-col">
           {/* Subscription Guard Locked Screen */}
           {isLocked ? (
-            <div className="absolute inset-0 bg-canvas-soft/90 backdrop-blur-sm z-30 flex items-center justify-center p-8">
-              <div className="max-w-md card-content border border-ink/5 text-center shadow-xl">
+            <div className="flex-grow flex items-center justify-center p-8 min-h-[calc(100vh-12rem)]">
+              <div className="max-w-md w-full card-content border border-ink/5 text-center shadow-xl p-8 bg-canvas rounded-wise">
                 <div className="w-16 h-16 bg-negative-bg text-white rounded-full flex items-center justify-center mx-auto mb-6">
                   <span className="text-3xl">🔒</span>
                 </div>
                 <h3 className="text-2xl font-black text-ink mb-3">Subscription Suspended</h3>
                 <p className="text-sm text-body-text mb-6">
-                  Your shop&apos;s standard subscription is currently unpaid or expired. Please subscribe to restore calendar operations.
+                  {role === "OWNER"
+                    ? "Your shop's standard subscription is currently unpaid or expired. Please subscribe to restore calendar operations."
+                    : "Your shop's subscription is expired. Please contact the shop owner to restore calendar and dashboard operations."}
                 </p>
                 <div className="flex flex-col gap-3">
-                  <button
-                    onClick={() => router.push("/dashboard/billing")}
-                    className="button-primary w-full"
-                  >
-                    Activate Subscription
-                  </button>
-                  <Link href="/" className="button-secondary text-sm">
+                  {role === "OWNER" ? (
+                    <button
+                      onClick={() => router.push("/dashboard/billing")}
+                      className="button-primary w-full"
+                    >
+                      Activate Subscription
+                    </button>
+                  ) : (
+                    <div className="bg-canvas-soft border border-ink/5 p-3 rounded-xl text-xs font-bold text-mute-text">
+                      Status: Contacting Shop Owner
+                    </div>
+                  )}
+                  <Link href="/" className="button-secondary text-sm text-center py-3">
                     Back to Homepage
                   </Link>
                 </div>
               </div>
             </div>
-          ) : null}
-
-          {children}
+          ) : (
+            children
+          )}
         </main>
       </div>
     </div>

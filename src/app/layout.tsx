@@ -5,6 +5,10 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Trimly — Premium Barbershop SaaS Platform",
   description: "Automate scheduling, WhatsApp confirmations, and manual walk-ins with no double-bookings.",
+  icons: {
+    icon: "/favicon.ico",
+    shortcut: "/favicon.ico",
+  },
 };
 
 export default function RootLayout({

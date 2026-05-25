@@ -51,6 +51,13 @@ export default function BillingPage() {
   const handleToggleSuspension = async () => {
     const shops = mockDb.getShops();
     if (shops.length > 0) {
+      if (!shops[0].subscription) {
+        shops[0].subscription = {
+          plan: "MONTHLY",
+          status: "EXPIRED",
+          currentPeriodEnd: new Date().toISOString(),
+        };
+      }
       const active = shops[0].subscription.status === "ACTIVE";
       shops[0].subscription.status = active ? "EXPIRED" : "ACTIVE";
       mockDb.setShops(shops);
