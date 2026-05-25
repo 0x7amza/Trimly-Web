@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { api, Barber, Service, Customer, mockDb, Shop, Product } from "@/lib/api";
+import { api, Barber, Service, Customer, Shop, Product } from "@/lib/api";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements, CardElement, useStripe, useElements } from "@stripe/react-stripe-js";
 import Link from "next/link";

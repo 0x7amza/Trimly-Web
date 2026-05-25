@@ -1,10 +1,11 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { B2BProviders, useB2BAuth } from "@/components/providers";
 import { useUser, UserButton, SignIn } from "@clerk/nextjs";
+import { api } from "@/lib/api";
 import { 
   Calendar, 
   Scissors, 
@@ -16,10 +17,104 @@ import {
   ShoppingBag
 } from "lucide-react";
 
+function CreateShopOnboarding() {
+  const { refreshShopData } = useB2BAuth();
+  const [shopName, setShopName] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!shopName.trim()) return;
+    setLoading(true);
+    setError(null);
+    try {
+      await api.shops.create(shopName.trim());
+      await refreshShopData();
+    } catch (err: any) {
+      setError(err.message || "An unexpected error occurred");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="flex-grow flex items-center justify-center p-8 min-h-[calc(100vh-12rem)]">
+      <div className="max-w-md w-full bg-canvas border border-ink/5 text-center shadow-xl p-8 rounded-wise flex flex-col items-center">
+        <div className="w-16 h-16 bg-primary-pale text-ink rounded-full flex items-center justify-center mb-6 border border-primary/20">
+          <Scissors className="w-8 h-8 text-primary" />
+        </div>
+        <h3 className="text-2xl font-black text-ink mb-2">Setup Your Shop</h3>
+        <p className="text-sm text-body-text mb-6">
+          Welcome to Trimly! Let's name your barbershop or salon to initialize your workspace and start your 14-day free trial.
+        </p>
+
+        {error && (
+          <div className="w-full bg-negative-bg/5 border border-negative/10 text-negative text-xs font-semibold p-3.5 rounded-xl mb-4 text-left">
+            ⚠️ {error}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="w-full space-y-4">
+          <div className="space-y-1.5 text-left">
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-body-text">
+              Barbershop / Salon Name
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. Gentlemen's Barber Club"
+              value={shopName}
+              onChange={(e) => setShopName(e.target.value)}
+              className="w-full bg-canvas-soft border border-ink/10 rounded-xl py-3 px-4 text-sm font-bold text-ink placeholder:text-mute-text/40 focus:outline-none focus:border-ink transition-colors shadow-sm"
+              required
+              disabled={loading}
+            />
+          </div>
+
+          <button
+            type="submit"
+            className="button-primary w-full py-3.5 font-bold text-sm tracking-wide shadow-md transition-transform hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 disabled:pointer-events-none"
+            disabled={loading || !shopName.trim()}
+          >
+            {loading ? "Creating Shop..." : "Create Shop & Start Trial"}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function BarberPendingScreen() {
+  const { user } = useUser();
+
+  return (
+    <div className="flex-grow flex items-center justify-center p-8 min-h-[calc(100vh-12rem)]">
+      <div className="max-w-md w-full bg-canvas border border-ink/5 text-center shadow-xl p-8 rounded-wise flex flex-col items-center">
+        <div className="w-16 h-16 bg-amber-50 text-amber-700 rounded-full flex items-center justify-center mb-6 border border-amber-200">
+          <Users className="w-8 h-8 text-amber-700" />
+        </div>
+        <h3 className="text-2xl font-black text-ink mb-2">Pending Invitation</h3>
+        <p className="text-sm text-body-text mb-6 leading-relaxed">
+          Hello <strong>{user?.fullName || "there"}</strong>. Your account is not currently linked to any barbershop or salon. 
+          Please contact the shop owner and ask them to add your email (<strong>{user?.primaryEmailAddress?.emailAddress}</strong>) to their staff.
+        </p>
+        <div className="bg-canvas-soft border border-ink/5 p-3.5 rounded-xl text-xs font-bold text-mute-text w-full">
+          Status: Awaiting staff assignment by salon owner.
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { activeBarber, shop, role } = useB2BAuth();
+  const { user } = useUser();
+
+  // Real email always comes from the logged-in Clerk user
+  const displayEmail = user?.primaryEmailAddress?.emailAddress ?? activeBarber?.email ?? "";
+  const displayName  = user?.fullName || user?.username || activeBarber?.name || "";
 
   // Subscription Guard: check if subscription is cancelled/expired/none
   const hasSubscription = shop && ["ACTIVE", "TRIALING"].includes(shop.subscription?.status || "");
@@ -71,6 +166,21 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
             {allowedNavItems.map((item) => {
               const active = pathname.startsWith(item.path);
               const IconComponent = item.icon;
+
+              if (!shop) {
+                // Render disabled navigation links during setup
+                return (
+                  <div
+                    key={item.path}
+                    className="flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm text-mute-text/40 cursor-not-allowed select-none"
+                  >
+                    <IconComponent className="w-4 h-4 text-mute-text/30" />
+                    {item.label}
+                    <span className="ml-auto text-[10px] font-bold bg-canvas-soft px-1.5 py-0.5 rounded border border-ink/5">🔒</span>
+                  </div>
+                );
+              }
+
               return (
                 <Link
                   key={item.path}
@@ -104,7 +214,9 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
         {/* Topbar */}
         <header className="h-16 bg-canvas border-b border-ink/5 px-8 flex items-center justify-between sticky top-0 z-10">
           <div className="flex items-center gap-3">
-            <h2 className="font-extrabold text-lg text-ink">{shop?.name || "My Barbershop"}</h2>
+            <h2 className="font-extrabold text-lg text-ink">
+              {shop ? shop.name : "Setup Pending"}
+            </h2>
             <span className="text-xs font-bold bg-canvas-soft text-body-text px-2 py-0.5 rounded-md border border-ink/5">
               {role === "OWNER" ? "Owner Admin" : "Barber Staff"}
             </span>
@@ -112,8 +224,8 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
 
           <div className="flex items-center gap-4">
             <div className="text-right">
-              <span className="block text-sm font-bold text-ink">{activeBarber?.name}</span>
-              <span className="block text-xs text-mute-text">{activeBarber?.email}</span>
+              <span className="block text-sm font-bold text-ink">{displayName}</span>
+              <span className="block text-xs text-mute-text">{displayEmail}</span>
             </div>
             <UserButton />
           </div>
@@ -121,8 +233,13 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
 
         {/* Content Wrapper */}
         <main className="flex-grow p-8 relative flex flex-col">
-          {/* Subscription Guard Locked Screen */}
-          {isLocked ? (
+          {shop === null ? (
+            role === "OWNER" ? (
+              <CreateShopOnboarding />
+            ) : (
+              <BarberPendingScreen />
+            )
+          ) : isLocked ? (
             <div className="flex-grow flex items-center justify-center p-8 min-h-[calc(100vh-12rem)]">
               <div className="max-w-md w-full card-content border border-ink/5 text-center shadow-xl p-8 bg-canvas rounded-wise">
                 <div className="w-16 h-16 bg-negative-bg text-white rounded-full flex items-center justify-center mx-auto mb-6">
@@ -216,3 +333,4 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     </B2BProviders>
   );
 }
+

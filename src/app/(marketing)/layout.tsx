@@ -52,10 +52,7 @@ export default function MarketingLayout({
             ) : isSignedIn ? (
               <>
                 <Link href="/dashboard/calendar" className="button-primary text-xs md:text-sm !py-2 !px-4">
-                  For Professionals
-                </Link>
-                <Link href="/doe-barbershop" className="button-tertiary text-xs md:text-sm !py-2 !px-4">
-                  Client Login
+                  My Dashboard
                 </Link>
                 <UserButton />
               </>
@@ -63,9 +60,6 @@ export default function MarketingLayout({
               <>
                 <Link href="/for-professionals" className="button-primary text-xs md:text-sm !py-2 !px-4 text-center">
                   For Professionals
-                </Link>
-                <Link href="/doe-barbershop" className="button-tertiary text-xs md:text-sm !py-2 !px-4">
-                  Client Login
                 </Link>
               </>
             )}

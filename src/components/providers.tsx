@@ -2,18 +2,15 @@
 
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { useUser } from "@clerk/nextjs";
-import { api, mockDb, Barber, Shop } from "@/lib/api";
+import { api, Barber, Shop } from "@/lib/api";
 
 interface B2BAuthContextType {
   activeBarber: Barber | null;
   shop: Shop | null;
   allBarbers: Barber[];
   role: "OWNER" | "BARBER";
-  isMockMode: boolean;
   isLoading: boolean;
-  loginAs: (clerkId: string) => void;
   refreshShopData: () => Promise<void>;
-  addMockBarber: (name: string, email: string) => void;
 }
 
 const B2BAuthContext = createContext<B2BAuthContextType | undefined>(undefined);
@@ -27,82 +24,59 @@ export function B2BProviders({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   const loadData = async () => {
-    if (!isClerkLoaded) return;
+    if (!isClerkLoaded || !user) return;
     setIsLoading(true);
     try {
-      if (user) {
-        // Sync logged-in Clerk user with our barbers database
-        const syncRes = await api.barbers.sync({
-          name: user.fullName || user.username || "Authenticated Barber",
-          email: user.primaryEmailAddress?.emailAddress || "barber@example.com",
-        });
+      // Always use real Clerk identity
+      const clerkEmail = user.primaryEmailAddress?.emailAddress ?? "";
+      const clerkName = user.fullName || user.username || "Authenticated User";
 
-        if (syncRes.success) {
-          const syncedBarber = syncRes.data;
-          
-          // For high-fidelity testing: Map mock owner (user_john) to the logged in Clerk user
-          const barbers = mockDb.getBarbers();
-          const idx = barbers.findIndex(b => b.clerkId === "user_john" || b.clerkId === user.id);
-          if (idx !== -1) {
-            barbers[idx].clerkId = user.id;
-            barbers[idx].name = syncedBarber.name;
-            barbers[idx].email = syncedBarber.email;
-            mockDb.setBarbers(barbers);
-            
-            // Set mock active user to this Clerk ID
-            mockDb.setActiveUser({ clerkId: user.id, role: barbers[idx].role });
-          }
+      // Sync with backend — creates or updates the barber record
+      const syncRes = await api.barbers.sync({ name: clerkName, email: clerkEmail });
 
-          setActiveBarber({
-            ...syncedBarber,
-            clerkId: user.id,
-          });
-          setRole(syncedBarber.role);
-        }
+      if (syncRes.success) {
+        setActiveBarber(syncRes.data);
+        setRole(syncRes.data.role);
       }
 
-      // Fetch shop details
-      const shopRes = await api.shops.getMe();
-      if (shopRes.success) {
-        setShop(shopRes.data.shop);
-        setAllBarbers(shopRes.data.barbers);
+      // Try to load shop data
+      try {
+        const shopRes = await api.shops.getMe();
+        if (shopRes.success) {
+          setShop(shopRes.data.shop);
+          setAllBarbers(shopRes.data.barbers);
+        }
+      } catch {
+        // New user — no shop yet, that's fine
+        setShop(null);
+        setAllBarbers([]);
       }
     } catch (err) {
-      console.error("Error loading B2B authentication data:", err);
+      console.error("Error loading B2B auth data:", err);
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    if (isClerkLoaded) {
+    if (isClerkLoaded && user) {
       loadData();
+    } else if (isClerkLoaded && !user) {
+      setIsLoading(false);
     }
-  }, [isClerkLoaded, user]);
-
-  const loginAs = (clerkId: string) => {
-    const barbers = mockDb.getBarbers();
-    const b = barbers.find(barb => barb.clerkId === clerkId);
-    if (b) {
-      mockDb.setActiveUser({ clerkId: b.clerkId, role: b.role });
-      setActiveBarber(b);
-      setRole(b.role);
-      refreshShopData();
-    }
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isClerkLoaded, user?.id]);
 
   const refreshShopData = async () => {
-    const shopRes = await api.shops.getMe();
-    if (shopRes.success) {
-      setShop(shopRes.data.shop);
-      setAllBarbers(shopRes.data.barbers);
+    try {
+      const shopRes = await api.shops.getMe();
+      if (shopRes.success) {
+        setShop(shopRes.data.shop);
+        setAllBarbers(shopRes.data.barbers);
+      }
+    } catch {
+      // ignore
     }
-  };
-
-  const addMockBarber = (name: string, email: string) => {
-    api.shops.addBarber({ barberName: name, barberEmail: email }).then(() => {
-      refreshShopData();
-    });
   };
 
   return (
@@ -112,11 +86,8 @@ export function B2BProviders({ children }: { children: React.ReactNode }) {
         shop,
         allBarbers,
         role,
-        isMockMode: true,
         isLoading: isLoading || !isClerkLoaded,
-        loginAs,
         refreshShopData,
-        addMockBarber,
       }}
     >
       {children}

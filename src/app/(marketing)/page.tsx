@@ -23,7 +23,7 @@ import {
   MessageSquare,
   AlertTriangle
 } from "lucide-react";
-import { mockDb } from "@/lib/api";
+import { api } from "@/lib/api";
 import { 
   Card, 
   CardHeader, 
@@ -61,52 +61,32 @@ export default function MarketingPage() {
   // Simulated Toast for Contact Sales
   const [showSalesToast, setShowSalesToast] = useState(false);
 
-  // Search suggestions filtering
+  // Search suggestions filtering — debounced call to /api/v1/search
   useEffect(() => {
     if (!searchQuery.trim()) {
       setSuggestions([]);
       return;
     }
-
-    const query = searchQuery.toLowerCase();
-    const allShops = mockDb.getShops();
-    const allServices = mockDb.getServices();
-
-    const getCategoryName = (slug: string) => {
-      if (slug.includes("hairdresser")) return "Hairdresser";
-      if (slug.includes("barber")) return "Barber";
-      if (slug.includes("nails")) return "Manicure";
-      if (slug.includes("beauty")) return "Beauty Salon";
-      return "Salon";
-    };
-
-    const matchingShops: SuggestionItem[] = allShops
-      .filter(shop => shop.name.toLowerCase().includes(query))
-      .map(shop => ({
-        id: shop.id,
-        name: shop.name,
-        type: "shop" as const,
-        category: getCategoryName(shop.slug),
-        slug: shop.slug
-      }));
-
-    const matchingServices: SuggestionItem[] = allServices
-      .filter(service => service.name.toLowerCase().includes(query) && service.isActive)
-      .map(service => {
-        const barber = mockDb.getBarbers().find(b => b.clerkId === service.barberId);
-        const shop = allShops.find(s => s.id === barber?.shopId);
-        return {
-          id: service.id,
-          name: service.name,
-          type: "service" as const,
-          category: getCategoryName(shop?.slug || ""),
-          shopName: shop?.name || "Premium Salon"
-        };
-      });
-
-    const combined = [...matchingShops, ...matchingServices];
-    setSuggestions(combined.slice(0, 8));
+    const timeout = setTimeout(async () => {
+      try {
+        const res = await api.search({ searchQuery: searchQuery.trim(), limit: 8 });
+        if (res.success) {
+          const items = res.data.results.map((r) => ({
+            id: r.id,
+            name: r.name,
+            type: "shop" as const,
+            category: r.industryType || "Salon",
+            slug: r.slug,
+          }));
+          setSuggestions(items);
+        }
+      } catch {
+        setSuggestions([]);
+      }
+    }, 300);
+    return () => clearTimeout(timeout);
   }, [searchQuery]);
+
 
   // Handle Search submit
   const handleSearchSubmit = (e: React.FormEvent) => {

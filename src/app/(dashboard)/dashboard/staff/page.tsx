@@ -2,14 +2,11 @@
 
 import React, { useState } from "react";
 import { useB2BAuth } from "@/components/providers";
+import { Link2, Copy, CheckCheck, Users, Scissors, ExternalLink } from "lucide-react";
 
 export default function StaffPage() {
-  const { role, allBarbers, addMockBarber } = useB2BAuth();
-
-  // Form states
-  const [isOpen, setIsOpen] = useState(false);
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+  const { role, allBarbers } = useB2BAuth();
+  const [copied, setCopied] = useState(false);
 
   // Guard: Owner only page
   if (role !== "OWNER") {
@@ -26,33 +23,112 @@ export default function StaffPage() {
     );
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name || !email) return;
+  const inviteLink =
+    typeof window !== "undefined"
+      ? `${window.location.origin}/for-professionals`
+      : "/for-professionals";
 
-    addMockBarber(name, email);
-    setName("");
-    setEmail("");
-    setIsOpen(false);
+  const handleCopy = () => {
+    navigator.clipboard.writeText(inviteLink).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    });
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full gap-8">
       {/* Header */}
-      <div className="flex justify-between items-center mb-8">
+      <div className="flex justify-between items-start">
         <div>
           <h1 className="text-3xl font-black text-ink">Staff Registry</h1>
-          <p className="text-sm text-body-text">
-            Add, manage, and view active barbers registered to your salon.
+          <p className="text-sm text-body-text mt-1">
+            Manage active barbers registered to your salon.
           </p>
         </div>
-        <button onClick={() => setIsOpen(true)} className="button-primary">
-          ➕ Invite Staff Member
-        </button>
+      </div>
+
+      {/* Invite Banner */}
+      <div className="bg-canvas border border-ink/10 rounded-2xl p-6 shadow-sm">
+        <div className="flex items-start gap-4">
+          <div className="w-11 h-11 bg-primary/10 border border-primary/20 rounded-xl flex items-center justify-center flex-shrink-0">
+            <Users className="w-5 h-5 text-ink" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h3 className="font-black text-ink text-base">Invite a Barber to Your Team</h3>
+            <p className="text-xs text-mute-text mt-1 leading-relaxed mb-4">
+              Share the link below with your barber. They'll create their own Trimly account
+              and be linked to your salon automatically.
+            </p>
+
+            {/* Invite Link Row */}
+            <div className="flex items-center gap-2">
+              <div className="flex-1 flex items-center gap-2 bg-canvas-soft border border-ink/10 rounded-xl px-4 py-3 min-w-0">
+                <Link2 className="w-4 h-4 text-mute-text flex-shrink-0" />
+                <span className="text-sm font-semibold text-body-text truncate">
+                  {inviteLink}
+                </span>
+              </div>
+              <button
+                id="btn-copy-invite-link"
+                onClick={handleCopy}
+                className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-bold transition-all cursor-pointer flex-shrink-0 ${
+                  copied
+                    ? "bg-positive-pale text-positive border border-positive/20"
+                    : "bg-ink text-white hover:bg-ink-hover"
+                }`}
+              >
+                {copied ? (
+                  <>
+                    <CheckCheck className="w-4 h-4" />
+                    Copied!
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-4 h-4" />
+                    Copy Link
+                  </>
+                )}
+              </button>
+              <a
+                href={inviteLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                id="btn-open-invite-link"
+                className="flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-bold bg-canvas-soft border border-ink/10 text-body-text hover:text-ink hover:border-ink/30 transition-all flex-shrink-0"
+              >
+                <ExternalLink className="w-4 h-4" />
+                Preview
+              </a>
+            </div>
+          </div>
+        </div>
+
+        {/* How it works */}
+        <div className="mt-5 pt-5 border-t border-ink/5 grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {[
+            { icon: "1", label: "Copy the invite link above" },
+            { icon: "2", label: "Send it to your barber via WhatsApp, SMS, or email" },
+            { icon: "3", label: "They sign up → appear in your staff list automatically" },
+          ].map((step) => (
+            <div key={step.icon} className="flex items-start gap-3">
+              <span className="w-6 h-6 rounded-full bg-ink text-white text-xs font-black flex items-center justify-center flex-shrink-0 mt-0.5">
+                {step.icon}
+              </span>
+              <p className="text-xs text-mute-text leading-relaxed">{step.label}</p>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Staff Table */}
       <div className="bg-canvas rounded-wise border border-ink/5 overflow-hidden shadow-sm">
+        <div className="px-6 py-4 border-b border-ink/5 flex items-center gap-2">
+          <Scissors className="w-4 h-4 text-mute-text" />
+          <h2 className="font-bold text-sm text-ink">Active Team Members</h2>
+          <span className="ml-auto text-xs font-bold bg-canvas-soft text-mute-text px-2 py-0.5 rounded-md border border-ink/5">
+            {allBarbers.length} member{allBarbers.length !== 1 ? "s" : ""}
+          </span>
+        </div>
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-canvas-soft border-b border-ink/5">
@@ -66,21 +142,23 @@ export default function StaffPage() {
             {allBarbers.map((barber) => (
               <tr key={barber.id} className="hover:bg-canvas-soft/20 transition-colors">
                 <td className="p-4 flex items-center gap-3">
-                  <div className="w-9 h-9 bg-primary-pale text-ink-deep font-bold rounded-full flex items-center justify-center">
-                    {barber.name.split(" ").map(n => n[0]).join("")}
+                  <div className="w-9 h-9 bg-primary-pale text-ink-deep font-bold rounded-full flex items-center justify-center text-sm">
+                    {barber.name.split(" ").map((n) => n[0]).join("").toUpperCase()}
                   </div>
                   <div>
                     <span className="block font-bold text-ink">{barber.name}</span>
-                    <span className="block text-xs text-mute-text">{barber.id}</span>
+                    <span className="block text-xs text-mute-text font-mono">{barber.id}</span>
                   </div>
                 </td>
                 <td className="p-4 text-sm font-semibold text-body-text">{barber.email}</td>
                 <td className="p-4 text-sm font-semibold">
-                  <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                    barber.role === "OWNER"
-                      ? "bg-ink text-white"
-                      : "bg-canvas-soft text-ink border border-ink/5"
-                  }`}>
+                  <span
+                    className={`px-3 py-1 rounded-full text-xs font-bold ${
+                      barber.role === "OWNER"
+                        ? "bg-ink text-white"
+                        : "bg-canvas-soft text-ink border border-ink/5"
+                    }`}
+                  >
                     {barber.role}
                   </span>
                 </td>
@@ -92,66 +170,6 @@ export default function StaffPage() {
           </tbody>
         </table>
       </div>
-
-      {/* Invite Modal */}
-      {isOpen && (
-        <div className="fixed inset-0 bg-ink/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
-          <div className="w-full max-w-md bg-canvas rounded-wise p-6 border border-ink/5 shadow-xl">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl font-black text-ink">Invite Barber</h3>
-              <button
-                onClick={() => setIsOpen(false)}
-                className="text-mute-text hover:text-ink font-bold text-lg"
-              >
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-mute-text mb-2">
-                  Full Name
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. David Smith"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="text-input"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-mute-text mb-2">
-                  Email Address
-                </label>
-                <input
-                  type="email"
-                  placeholder="e.g. david@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="text-input"
-                  required
-                />
-              </div>
-
-              <div className="pt-6 flex gap-3 border-t border-ink/5">
-                <button
-                  type="button"
-                  onClick={() => setIsOpen(false)}
-                  className="button-secondary flex-1"
-                >
-                  Cancel
-                </button>
-                <button type="submit" className="button-primary flex-1">
-                  Send Invitation
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

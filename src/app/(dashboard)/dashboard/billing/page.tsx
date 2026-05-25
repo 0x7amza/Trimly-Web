@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { useB2BAuth } from "@/components/providers";
-import { mockDb, api } from "@/lib/api";
+import { api } from "@/lib/api";
 
 export default function BillingPage() {
   const { role, shop, allBarbers, refreshShopData } = useB2BAuth();
@@ -26,20 +26,10 @@ export default function BillingPage() {
   const handleSubscribe = async (plan: "MONTHLY" | "YEARLY") => {
     setLoadingPlan(plan);
     try {
-      // Call mock api which redirects or sets subscription active
       const res = await api.subscriptions.subscribe(plan);
-      if (res.success) {
-        // Toggle mock active
-        const shops = mockDb.getShops();
-        if (shops.length > 0) {
-          shops[0].subscription = {
-            plan,
-            status: "ACTIVE",
-            currentPeriodEnd: new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString(),
-          };
-          mockDb.setShops(shops);
-        }
-        await refreshShopData();
+      if (res.success && res.data.sessionUrl) {
+        // Redirect to Stripe checkout (or mock URL in dev)
+        window.location.href = res.data.sessionUrl;
       }
     } catch (err) {
       console.error(err);
@@ -48,22 +38,6 @@ export default function BillingPage() {
     }
   };
 
-  const handleToggleSuspension = async () => {
-    const shops = mockDb.getShops();
-    if (shops.length > 0) {
-      if (!shops[0].subscription) {
-        shops[0].subscription = {
-          plan: "MONTHLY",
-          status: "EXPIRED",
-          currentPeriodEnd: new Date().toISOString(),
-        };
-      }
-      const active = shops[0].subscription.status === "ACTIVE";
-      shops[0].subscription.status = active ? "EXPIRED" : "ACTIVE";
-      mockDb.setShops(shops);
-    }
-    await refreshShopData();
-  };
 
   const hasSubscription = shop && ["ACTIVE", "TRIALING"].includes(shop.subscription?.status || "");
   const activePlan = shop?.subscription?.plan || "NONE";
@@ -79,17 +53,6 @@ export default function BillingPage() {
           </p>
         </div>
 
-        {/* Developer Sandbox Toggle */}
-        <button
-          onClick={handleToggleSuspension}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border ${
-            hasSubscription
-              ? "bg-negative-bg text-white border-negative"
-              : "bg-primary text-ink border-ink/10"
-          }`}
-        >
-          {hasSubscription ? "⚡ Simulate Expired Plan (Lock Dashboard)" : "⚡ Simulate Subscription Restoration"}
-        </button>
       </div>
 
       {/* Plan Card */}

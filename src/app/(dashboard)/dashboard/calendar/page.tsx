@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { api, mockDb, Booking, Service } from "@/lib/api";
+import { api, Booking, Service } from "@/lib/api";
 import { useB2BAuth } from "@/components/providers";
 
 export default function CalendarPage() {

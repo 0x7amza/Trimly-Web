@@ -13,7 +13,7 @@ import {
   Sparkles, 
   ArrowRight 
 } from "lucide-react";
-import { api, Barber, Service, Shop, mockDb } from "@/lib/api";
+import { api, Barber, Service, Shop } from "@/lib/api";
 
 const CATEGORY_ICONS: Record<string, React.ComponentType<any>> = {
   hairdresser: Scissors,
@@ -66,11 +66,42 @@ export default function CategoryLandingView({ categorySlug }: { categorySlug: st
   const [barbers, setBarbers] = useState<Barber[]>([]);
   const [services, setServices] = useState<Service[]>([]);
 
+  const [isLoading, setIsLoading] = useState(true);
+
   useEffect(() => {
-    setShops(mockDb.getShops());
-    setBarbers(mockDb.getBarbers());
-    setServices(mockDb.getServices());
-  }, []);
+    setIsLoading(true);
+    // Map category slug to industryType used in DB
+    const industryTypeMap: Record<string, string> = {
+      hairdresser: "Hairdresser",
+      barber: "Barber",
+      manicure: "Manicure",
+      "beauty-salon": "Beauty Salon",
+    };
+    const industryType = industryTypeMap[categorySlug];
+    const qs = industryType ? `?industryType=${encodeURIComponent(industryType)}` : "";
+    fetch(`/api/v1/search${qs}`)
+      .then(r => r.json())
+      .then(res => {
+        if (res.success) {
+          // Build shop-like objects from search results
+          const mappedShops: Shop[] = res.data.results.map((item: { id: string; name: string; slug: string; profileImage?: string; images?: string[]; city?: string; industryType?: string }) => ({
+            id: item.id,
+            ownerId: "",
+            name: item.name,
+            slug: item.slug,
+            profileImage: item.profileImage,
+            profilePicture: item.profileImage,
+            images: item.images,
+            city: item.city,
+            industryType: item.industryType,
+          }));
+          setShops(mappedShops);
+        }
+      })
+      .catch(console.error)
+      .finally(() => setIsLoading(false));
+  }, [categorySlug]);
+
 
   const getCategorySlugForShop = (slug: string) => {
     if (slug.includes("hairdresser")) return "hairdresser";
