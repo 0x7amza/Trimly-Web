@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
   if (userIdOrError instanceof NextResponse) return userIdOrError;
 
   try {
-    const { name } = await request.json();
+    const { name, industryType, city } = await request.json();
     if (!name) {
       return NextResponse.json({ success: false, error: "Shop name required" }, { status: 400 });
     }
@@ -40,6 +40,8 @@ export async function POST(request: NextRequest) {
       ownerId: userIdOrError,
       name,
       slug: finalSlug,
+      industryType: industryType || undefined,
+      city: city || undefined,
       subscription: { plan: "NONE", status: "TRIALING", trialEndsAt },
       maxBarbersIncluded: 5,
     });

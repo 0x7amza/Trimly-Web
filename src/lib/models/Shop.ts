@@ -42,7 +42,10 @@ export interface IShop extends Document {
   };
   maxBarbersIncluded: number;
   profileImage?: string;
+  profilePicture?: string;
   images?: string[];
+  galleryPictures?: string[];
+  mapUrl?: string;
   industryType?: string;
   city?: string;
   address?: string;
@@ -57,8 +60,11 @@ const ShopSchema = new Schema<IShop>(
     subscription: { type: SubscriptionSchema, default: () => ({ plan: "NONE", status: "TRIALING" }) },
     maxBarbersIncluded: { type: Number, default: 5 },
     profileImage: String,
+    profilePicture: String,
     images: [String],
-    industryType: String,
+    galleryPictures: [String],
+    mapUrl: String,
+    industryType: { type: String, enum: ["Barber", "Hairdresser", "Manicure", "Beauty Salon"] },
     city: String,
     address: String,
     businessHours: [BusinessHoursSchema],

@@ -24,6 +24,7 @@ import {
   AlertTriangle
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { CustomCombobox } from "@/components/ui/custom-combobox";
 import { 
   Card, 
   CardHeader, 
@@ -51,9 +52,40 @@ export default function MarketingPage() {
   // Search & Discovery State
   const [searchQuery, setSearchQuery] = useState("");
   const [locationQuery, setLocationQuery] = useState("");
+  const [activeCities, setActiveCities] = useState<string[]>([]);
   const [suggestions, setSuggestions] = useState<SuggestionItem[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [searchError, setSearchError] = useState("");
+
+  useEffect(() => {
+    fetch("/api/v1/search")
+      .then((r) => r.json())
+      .then((res) => {
+        if (res.success && res.data.cities) {
+          setActiveCities(res.data.cities);
+        }
+      })
+      .catch(console.error);
+  }, []);
+
+  // Real shop state for hero card mockup
+  const [heroShop, setHeroShop] = useState<{
+    name: string;
+    slug: string;
+    address: string;
+    barbersCount: number;
+    popularService: { name: string; duration: number; price: number } | null;
+    slots: string[];
+    status: "loading" | "real" | "no-shops";
+  }>({
+    name: "Loading Preview...",
+    slug: "",
+    address: "",
+    barbersCount: 0,
+    popularService: null,
+    slots: [],
+    status: "loading",
+  });
 
   // Pricing Period Toggle
   const [billingPeriod, setBillingPeriod] = useState<"monthly" | "yearly">("monthly");
@@ -87,15 +119,102 @@ export default function MarketingPage() {
     return () => clearTimeout(timeout);
   }, [searchQuery]);
 
+  // Fetch first real shop from database on mount for hero card
+  useEffect(() => {
+    async function loadHeroShop() {
+      try {
+        const searchRes = await api.search({ limit: 1 });
+        if (searchRes.success && searchRes.data.results.length > 0) {
+          const firstShop = searchRes.data.results[0];
+          const shopRes = await api.shops.getBySlug(firstShop.slug);
+          if (shopRes.success) {
+            const { shop, barbers } = shopRes.data;
+            let popularService = null;
+            if (barbers.length > 0) {
+              const servicesRes = await api.services.getBarberServices(barbers[0].clerkId);
+              if (servicesRes.success && servicesRes.data.length > 0) {
+                const service = servicesRes.data[0];
+                popularService = {
+                  name: service.name,
+                  duration: service.durationMinutes,
+                  price: service.price / 100,
+                };
+              }
+            }
+            if (!popularService) {
+              popularService = {
+                name: "Standard Cut",
+                duration: 30,
+                price: 25.0,
+              };
+            }
+            setHeroShop({
+              name: shop.name,
+              slug: shop.slug,
+              address: shop.address || shop.city || "Local shop",
+              barbersCount: barbers.length || 1,
+              popularService,
+              slots: ["10:00 AM", "11:30 AM", "2:00 PM"],
+              status: "real",
+            });
+            return;
+          }
+        }
+        // Fallback/No shops registered yet
+        setHeroShop({
+          name: "Register Your Shop",
+          slug: "for-professionals",
+          address: "Create your booking profile in 60 seconds",
+          barbersCount: 0,
+          popularService: {
+            name: "Get Started Now",
+            duration: 1,
+            price: 0,
+          },
+          slots: ["Add Slots", "Set Hours", "Go Live"],
+          status: "no-shops",
+        });
+      } catch (err) {
+        console.error("Failed to load real hero shop:", err);
+        setHeroShop({
+          name: "Register Your Shop",
+          slug: "for-professionals",
+          address: "Create your booking profile in 60 seconds",
+          barbersCount: 0,
+          popularService: {
+            name: "Get Started Now",
+            duration: 1,
+            price: 0,
+          },
+          slots: ["Add Slots", "Set Hours", "Go Live"],
+          status: "no-shops",
+        });
+      }
+    }
+    loadHeroShop();
+  }, []);
+
 
   // Handle Search submit
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setSearchError("");
 
-    // Submit redirects to /discover with parameters
-    const url = `/discover?query=${encodeURIComponent(searchQuery)}&location=${encodeURIComponent(locationQuery)}`;
-    router.push(url);
+    const q = searchQuery.toLowerCase();
+    let category = "barber"; // default fallback
+
+    if (q.includes("hair") || q.includes("style") || q.includes("cut") || q.includes("color") || q.includes("dresser")) {
+      category = "hairdresser";
+    } else if (q.includes("barber") || q.includes("shave") || q.includes("fade") || q.includes("beard")) {
+      category = "barber";
+    } else if (q.includes("nail") || q.includes("manicure") || q.includes("pedicure") || q.includes("gel") || q.includes("nails")) {
+      category = "manicure";
+    } else if (q.includes("beauty") || q.includes("facial") || q.includes("skin") || q.includes("salon")) {
+      category = "beauty-salon";
+    }
+
+    const cityParam = locationQuery.trim() ? `?city=${encodeURIComponent(locationQuery.trim())}` : "";
+    router.push(`/${category}${cityParam}`);
   };
 
   const handleSelectSuggestion = (item: SuggestionItem) => {
@@ -104,7 +223,16 @@ export default function MarketingPage() {
       router.push(`/${item.slug}`);
     } else {
       setSearchQuery(item.name);
-      router.push(`/discover?query=${encodeURIComponent(item.name)}&location=${encodeURIComponent(locationQuery)}`);
+      
+      let catSlug = "barber";
+      const cat = (item.category || "").toLowerCase();
+      if (cat.includes("hair") || cat.includes("style") || cat.includes("cut") || cat.includes("dresser")) catSlug = "hairdresser";
+      else if (cat.includes("barber") || cat.includes("fade")) catSlug = "barber";
+      else if (cat.includes("nail") || cat.includes("manicure") || cat.includes("pedicure")) catSlug = "manicure";
+      else if (cat.includes("beauty") || cat.includes("salon")) catSlug = "beauty-salon";
+
+      const cityParam = locationQuery.trim() ? `?city=${encodeURIComponent(locationQuery.trim())}` : "";
+      router.push(`/${catSlug}${cityParam}`);
     }
   };
 
@@ -237,8 +365,8 @@ export default function MarketingPage() {
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
-              <Link href="/discover" className="button-primary text-sm font-bold px-6 py-3.5">
-                Explore Directory
+              <Link href="/barber" className="button-primary text-sm font-bold px-6 py-3.5">
+                Book a Barber
               </Link>
               <Link href="#pricing" className="button-tertiary text-sm font-bold px-6 py-3.5">
                 Trimly B2B SaaS Plans
@@ -248,70 +376,104 @@ export default function MarketingPage() {
 
           {/* Right Column: Immersive Dashboard Mockup */}
           <div className="lg:col-span-5 w-full flex justify-center">
-            <div className="w-full max-w-md card-content bg-canvas border border-ink/10 shadow-2xl relative rounded-wise overflow-hidden">
-              {/* Mock Browser Header */}
-              <div className="pb-4 border-b border-ink/5 flex items-center justify-between">
-                <div className="flex items-center gap-1.5">
-                  <div className="w-2.5 h-2.5 rounded-full bg-negative" />
-                  <div className="w-2.5 h-2.5 rounded-full bg-warning" />
-                  <div className="w-2.5 h-2.5 rounded-full bg-positive" />
-                </div>
-                <span className="text-[10px] md:text-xs font-semibold text-mute-text bg-canvas-soft px-3 py-0.5 rounded-md">
-                  trimly.app/doe-barbershop
-                </span>
-                <div className="w-4 h-4" />
+            {heroShop.status === "loading" ? (
+              <div className="w-full max-w-md card-content bg-canvas border border-ink/10 shadow-2xl relative rounded-wise overflow-hidden h-[360px] flex items-center justify-center">
+                <div className="text-sm font-bold text-mute-text animate-pulse">Loading Live Booking Preview...</div>
               </div>
-
-              {/* Mock Shop Card Info */}
-              <div className="pt-5 space-y-5">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="text-base font-black text-ink flex items-center gap-1.5">
-                      <Scissors className="w-4 h-4 text-mute-text" /> 
-                      Doe Barbershop
-                    </h4>
-                    <p className="text-xs text-mute-text">123 Barber St, London</p>
-                  </div>
-                  <span className="badge-positive text-[10px] md:text-xs">Open Now</span>
-                </div>
-
-                {/* Rating & Barbers */}
-                <div className="flex items-center gap-4 text-xs">
-                  <div className="flex items-center gap-1 text-ink font-bold">
-                    <Star className="w-3.5 h-3.5 fill-warning text-warning" />
-                    4.9 <span className="text-mute-text font-normal">(184 reviews)</span>
-                  </div>
-                  <div className="flex items-center gap-1 text-mute-text">
-                    <Users className="w-3.5 h-3.5" />
-                    <span>2 Master Barbers</span>
-                  </div>
-                </div>
-
-                {/* Services Selection Mockup */}
-                <div className="space-y-2">
-                  <span className="block text-[10px] font-bold text-mute-text uppercase tracking-wider">Popular Services</span>
-                  <div className="bg-canvas-soft/30 p-3 rounded-xl border border-ink/5 flex items-center justify-between hover:bg-primary-pale transition-all cursor-pointer">
-                    <div>
-                      <span className="text-xs font-bold block text-ink">Modern Skinfade</span>
-                      <span className="text-[10px] text-mute-text flex items-center gap-1 mt-0.5">
-                        <Clock className="w-3 h-3" /> 30 min
-                      </span>
+            ) : (
+              <Link href={heroShop.status === "real" ? `/${heroShop.slug}` : `/for-professionals`} className="w-full max-w-md block group">
+                <div className="w-full card-content bg-canvas border border-ink/10 group-hover:border-primary/50 shadow-2xl relative rounded-wise overflow-hidden transition-all duration-300">
+                  {/* Mock Browser Header */}
+                  <div className="pb-4 border-b border-ink/5 flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-2.5 h-2.5 rounded-full bg-negative" />
+                      <div className="w-2.5 h-2.5 rounded-full bg-warning" />
+                      <div className="w-2.5 h-2.5 rounded-full bg-positive" />
                     </div>
-                    <span className="text-xs font-black text-ink">£30.00</span>
+                    <span className="text-[10px] md:text-xs font-semibold text-mute-text bg-canvas-soft px-3 py-0.5 rounded-md transition-colors group-hover:bg-primary-pale group-hover:text-primary-deep">
+                      {heroShop.status === "real" ? `trimly.app/${heroShop.slug}` : "trimly.app/your-salon"}
+                    </span>
+                    <div className="w-4 h-4" />
                   </div>
-                </div>
 
-                {/* Booking Timeline Mockup */}
-                <div className="space-y-2">
-                  <span className="block text-[10px] font-bold text-mute-text uppercase tracking-wider">Live Open Slots</span>
-                  <div className="flex gap-2">
-                    <span className="flex-1 text-center bg-primary text-ink text-[11px] font-bold py-2 rounded-lg border border-ink/10 shadow-sm cursor-pointer">10:00 AM</span>
-                    <span className="flex-1 text-center bg-canvas-soft/50 text-[11px] font-bold py-2 rounded-lg text-ink cursor-pointer">11:30 AM</span>
-                    <span className="flex-1 text-center bg-canvas-soft/50 text-[11px] font-bold py-2 rounded-lg text-ink cursor-pointer">2:00 PM</span>
+                  {/* Mock Shop Card Info */}
+                  <div className="pt-5 space-y-5">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="text-base font-black text-ink flex items-center gap-1.5">
+                          <Scissors className="w-4 h-4 text-mute-text" /> 
+                          {heroShop.name}
+                        </h4>
+                        <p className="text-xs text-mute-text">{heroShop.address}</p>
+                      </div>
+                      {heroShop.status === "real" ? (
+                        <span className="badge-positive text-[10px] md:text-xs">Open Now</span>
+                      ) : (
+                        <span className="bg-primary/20 text-primary-deep border border-primary/30 rounded-full px-2.5 py-0.5 text-[10px] md:text-xs font-bold animate-pulse">Claim Shop</span>
+                      )}
+                    </div>
+
+                    {/* Rating & Barbers */}
+                    <div className="flex items-center gap-4 text-xs">
+                      <div className="flex items-center gap-1 text-ink font-bold">
+                        <Star className="w-3.5 h-3.5 fill-warning text-warning" />
+                        4.9 <span className="text-mute-text font-normal">(184 reviews)</span>
+                      </div>
+                      <div className="flex items-center gap-1 text-mute-text">
+                        <Users className="w-3.5 h-3.5" />
+                        <span>
+                          {heroShop.status === "real" 
+                            ? `${heroShop.barbersCount} ${heroShop.barbersCount === 1 ? 'Specialist' : 'Specialists'}` 
+                            : "Unlimited Staff"
+                          }
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Services Selection Mockup */}
+                    {heroShop.popularService && (
+                      <div className="space-y-2">
+                        <span className="block text-[10px] font-bold text-mute-text uppercase tracking-wider">
+                          {heroShop.status === "real" ? "Popular Services" : "Onboarding Steps"}
+                        </span>
+                        <div className="bg-canvas-soft/30 p-3 rounded-xl border border-ink/5 flex items-center justify-between group-hover:bg-primary-pale transition-all">
+                          <div>
+                            <span className="text-xs font-bold block text-ink">{heroShop.popularService.name}</span>
+                            <span className="text-[10px] text-mute-text flex items-center gap-1 mt-0.5">
+                              <Clock className="w-3 h-3" /> {heroShop.popularService.duration} min
+                            </span>
+                          </div>
+                          <span className="text-xs font-black text-ink">
+                            {heroShop.status === "real" ? `£${heroShop.popularService.price.toFixed(2)}` : "Free"}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Booking Timeline Mockup */}
+                    <div className="space-y-2">
+                      <span className="block text-[10px] font-bold text-mute-text uppercase tracking-wider">
+                        {heroShop.status === "real" ? "Live Open Slots" : "Timeline Setup"}
+                      </span>
+                      <div className="flex gap-2">
+                        {heroShop.slots.map((slot, index) => (
+                          <span 
+                            key={slot} 
+                            className={`flex-1 text-center text-[11px] font-bold py-2 rounded-lg border shadow-sm transition-all ${
+                              index === 0 
+                                ? "bg-primary text-ink border-ink/10 group-hover:bg-primary-deep" 
+                                : "bg-canvas-soft/50 text-ink border-transparent"
+                            }`}
+                          >
+                            {slot}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </div>
+              </Link>
+            )}
           </div>
         </div>
       </section>
@@ -380,13 +542,17 @@ export default function MarketingPage() {
             {/* Input B: Location Field */}
             <div className="flex-1 flex items-center gap-3 px-4 py-2 relative">
               <MapPin className="w-5 h-5 text-mute-text flex-shrink-0" />
-              <input
-                type="text"
-                placeholder="Address, city or postcode"
-                value={locationQuery}
-                onChange={(e) => setLocationQuery(e.target.value)}
-                className="w-full bg-transparent border-0 outline-none text-ink py-1 text-sm font-semibold placeholder:text-mute-text focus:ring-0"
-              />
+              <div className="flex-grow">
+                <CustomCombobox
+                  value={locationQuery}
+                  onChange={(val) => setLocationQuery(val || "")}
+                  options={activeCities.map((city) => ({ label: city, value: city }))}
+                  placeholder="Select city..."
+                  searchPlaceholder="Search cities..."
+                  borderless={true}
+                  className="w-full"
+                />
+              </div>
             </div>
 
             {/* Search Submit Action Button */}
@@ -543,36 +709,36 @@ export default function MarketingPage() {
             <div className="space-y-3">
               <h4 className="font-bold text-ink border-b border-ink/5 pb-2">Hairdresser Styling</h4>
               <ul className="space-y-2 text-xs">
-                <li><Link href="/discover?category=hairdresser&location=London" className="text-body-text hover:text-ink hover:underline transition-all">Hairdressers in London</Link></li>
-                <li><Link href="/discover?category=hairdresser&location=Manchester" className="text-body-text hover:text-ink hover:underline transition-all">Hairdressers in Manchester</Link></li>
-                <li><Link href="/discover?category=hairdresser&location=Bristol" className="text-body-text hover:text-ink hover:underline transition-all">Hairdressers in Bristol</Link></li>
+                <li><Link href="/hairdresser?city=London" className="text-body-text hover:text-ink hover:underline transition-all">Hairdressers in London</Link></li>
+                <li><Link href="/hairdresser?city=Manchester" className="text-body-text hover:text-ink hover:underline transition-all">Hairdressers in Manchester</Link></li>
+                <li><Link href="/hairdresser?city=Bristol" className="text-body-text hover:text-ink hover:underline transition-all">Hairdressers in Bristol</Link></li>
               </ul>
             </div>
 
             <div className="space-y-3">
               <h4 className="font-bold text-ink border-b border-ink/5 pb-2">Barber Fades & Shaves</h4>
               <ul className="space-y-2 text-xs">
-                <li><Link href="/discover?category=barber&location=London" className="text-body-text hover:text-ink hover:underline transition-all">Barbers in London</Link></li>
-                <li><Link href="/discover?category=barber&location=Manchester" className="text-body-text hover:text-ink hover:underline transition-all">Barbers in Manchester</Link></li>
-                <li><Link href="/discover?category=barber&location=Bristol" className="text-body-text hover:text-ink hover:underline transition-all">Barbers in Bristol</Link></li>
+                <li><Link href="/barber?city=London" className="text-body-text hover:text-ink hover:underline transition-all">Barbers in London</Link></li>
+                <li><Link href="/barber?city=Manchester" className="text-body-text hover:text-ink hover:underline transition-all">Barbers in Manchester</Link></li>
+                <li><Link href="/barber?city=Bristol" className="text-body-text hover:text-ink hover:underline transition-all">Barbers in Bristol</Link></li>
               </ul>
             </div>
 
             <div className="space-y-3">
               <h4 className="font-bold text-ink border-b border-ink/5 pb-2">Nail & Manicure Care</h4>
               <ul className="space-y-2 text-xs">
-                <li><Link href="/discover?category=manicure&location=London" className="text-body-text hover:text-ink hover:underline transition-all">Nail Salons in London</Link></li>
-                <li><Link href="/discover?category=manicure&location=Manchester" className="text-body-text hover:text-ink hover:underline transition-all">Nail Salons in Manchester</Link></li>
-                <li><Link href="/discover?category=manicure&location=Bristol" className="text-body-text hover:text-ink hover:underline transition-all">Nail Salons in Bristol</Link></li>
+                <li><Link href="/manicure?city=London" className="text-body-text hover:text-ink hover:underline transition-all">Nail Salons in London</Link></li>
+                <li><Link href="/manicure?city=Manchester" className="text-body-text hover:text-ink hover:underline transition-all">Nail Salons in Manchester</Link></li>
+                <li><Link href="/manicure?city=Bristol" className="text-body-text hover:text-ink hover:underline transition-all">Nail Salons in Bristol</Link></li>
               </ul>
             </div>
 
             <div className="space-y-3">
               <h4 className="font-bold text-ink border-b border-ink/5 pb-2">Beauty & Skincare</h4>
               <ul className="space-y-2 text-xs">
-                <li><Link href="/discover?category=beauty-salon&location=London" className="text-body-text hover:text-ink hover:underline transition-all">Beauty Salons in London</Link></li>
-                <li><Link href="/discover?category=beauty-salon&location=Manchester" className="text-body-text hover:text-ink hover:underline transition-all">Beauty Salons in Manchester</Link></li>
-                <li><Link href="/discover?category=beauty-salon&location=Bristol" className="text-body-text hover:text-ink hover:underline transition-all">Beauty Salons in Bristol</Link></li>
+                <li><Link href="/beauty-salon?city=London" className="text-body-text hover:text-ink hover:underline transition-all">Beauty Salons in London</Link></li>
+                <li><Link href="/beauty-salon?city=Manchester" className="text-body-text hover:text-ink hover:underline transition-all">Beauty Salons in Manchester</Link></li>
+                <li><Link href="/beauty-salon?city=Bristol" className="text-body-text hover:text-ink hover:underline transition-all">Beauty Salons in Bristol</Link></li>
               </ul>
             </div>
           </div>
@@ -661,7 +827,7 @@ export default function MarketingPage() {
               Simple, transparent pricing.
             </h2>
             <p className="text-base text-body-text">
-              Try Trimly free for 14 days. Scale as your barbershop grows.
+              Start your 14-day free trial. No credit card required. Scale as your business grows.
             </p>
 
             {/* Period Toggle */}
@@ -691,55 +857,9 @@ export default function MarketingPage() {
             </div>
           </div>
 
-          {/* SaaS Pricing Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto items-stretch text-left">
+          {/* SaaS Pricing Cards — 2 column */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-3xl mx-auto items-stretch text-left">
             
-            {/* Free Tier Card */}
-            <Card className="flex flex-col justify-between">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold uppercase tracking-wider text-mute-text bg-canvas-soft px-2 py-1 rounded">Solo Professional</span>
-                </div>
-                <CardTitle className="mt-2">Free</CardTitle>
-                <CardDescription>Perfect for solo specialists starting out.</CardDescription>
-              </CardHeader>
-              <CardContent className="flex-grow">
-                <div className="flex items-baseline gap-1 my-4">
-                  <span className="text-4xl font-black text-ink">£0</span>
-                  <span className="text-xs font-bold text-mute-text">/ month</span>
-                </div>
-                <ul className="space-y-3.5 text-xs text-body-text mt-4">
-                  <li className="flex items-start gap-2.5">
-                    <Check className="w-4 h-4 text-positive flex-shrink-0 mt-0.5" />
-                    <span><strong>1 Professional</strong> profile</span>
-                  </li>
-                  <li className="flex items-start gap-2.5">
-                    <Check className="w-4 h-4 text-positive flex-shrink-0 mt-0.5" />
-                    <span>2-Tap manual bookings</span>
-                  </li>
-                  <li className="flex items-start gap-2.5">
-                    <Check className="w-4 h-4 text-positive flex-shrink-0 mt-0.5" />
-                    <span>Standard mobile booking URL</span>
-                  </li>
-                  <li className="flex items-start gap-2.5">
-                    <Check className="w-4 h-4 text-positive flex-shrink-0 mt-0.5" />
-                    <span>Standard email support</span>
-                  </li>
-                </ul>
-              </CardContent>
-              <div className="p-6 pt-0 mt-auto">
-                {isSignedIn ? (
-                  <Link href="/dashboard/calendar" className="button-tertiary w-full text-center py-3">
-                    Open Dashboard
-                  </Link>
-                ) : (
-                  <Link href="/for-professionals" className="button-tertiary w-full text-center block py-3">
-                    Get Started Free
-                  </Link>
-                )}
-              </div>
-            </Card>
-
             {/* Growth Tier Card (Popular) */}
             <Card className="border-ink ring-2 ring-primary relative flex flex-col justify-between">
               <div className="absolute top-0 right-6 -translate-y-1/2 bg-primary text-ink-deep text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full border border-ink">
@@ -747,10 +867,10 @@ export default function MarketingPage() {
               </div>
               <CardHeader>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold uppercase tracking-wider text-positive-deep bg-primary-pale px-2 py-1 rounded">Growth Tier</span>
+                  <span className="text-xs font-bold uppercase tracking-wider text-positive-deep bg-primary-pale px-2 py-1 rounded">Growth</span>
                 </div>
-                <CardTitle className="mt-2">Growth</CardTitle>
-                <CardDescription>Streamline customer bookings & automate reminders.</CardDescription>
+                <CardTitle className="mt-2">Growth Plan</CardTitle>
+                <CardDescription>Streamline customer bookings & automate reminders for your team.</CardDescription>
               </CardHeader>
               <CardContent className="flex-grow">
                 <div className="flex items-baseline gap-1 my-4">
@@ -760,7 +880,7 @@ export default function MarketingPage() {
                   <span className="text-xs font-bold text-mute-text">/ month</span>
                 </div>
                 {billingPeriod === "yearly" && (
-                  <span className="text-[10px] font-bold text-positive bg-primary-pale px-2 py-0.5 rounded">Billed annually at £276</span>
+                  <span className="text-[10px] font-bold text-positive bg-primary-pale px-2 py-0.5 rounded">Billed annually at £276 — save £72/yr</span>
                 )}
                 <ul className="space-y-3.5 text-xs text-body-text mt-4">
                   <li className="flex items-start gap-2.5">
@@ -777,6 +897,10 @@ export default function MarketingPage() {
                   </li>
                   <li className="flex items-start gap-2.5">
                     <Check className="w-4 h-4 text-positive flex-shrink-0 mt-0.5" />
+                    <span>Online & manual booking calendar</span>
+                  </li>
+                  <li className="flex items-start gap-2.5">
+                    <Check className="w-4 h-4 text-positive flex-shrink-0 mt-0.5" />
                     <span>Priority email & chat support</span>
                   </li>
                   <li className="flex items-start gap-2.5">
@@ -787,8 +911,11 @@ export default function MarketingPage() {
               </CardContent>
               <div className="p-6 pt-0 mt-auto">
                 {isSignedIn ? (
-                  <Link href="/dashboard/calendar" className="button-primary w-full text-center py-3">
-                    Open Dashboard
+                  <Link
+                    href={`/dashboard/billing?plan=${billingPeriod === "monthly" ? "MONTHLY" : "YEARLY"}`}
+                    className="button-primary w-full text-center py-3 block"
+                  >
+                    Subscribe to Growth — £{billingPeriod === "monthly" ? "29" : "23"}/mo
                   </Link>
                 ) : (
                   <Link href="/for-professionals" className="button-primary w-full text-center block py-3">
@@ -804,8 +931,8 @@ export default function MarketingPage() {
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold uppercase tracking-wider text-mute-text bg-canvas-soft px-2 py-1 rounded">Enterprise</span>
                 </div>
-                <CardTitle className="mt-2">Pro</CardTitle>
-                <CardDescription>For multi-location or high volume salons.</CardDescription>
+                <CardTitle className="mt-2">Pro Plan</CardTitle>
+                <CardDescription>For multi-location or high-volume salons needing advanced tools.</CardDescription>
               </CardHeader>
               <CardContent className="flex-grow">
                 <div className="flex items-baseline gap-1 my-4">
@@ -815,7 +942,7 @@ export default function MarketingPage() {
                   <span className="text-xs font-bold text-mute-text">/ month</span>
                 </div>
                 {billingPeriod === "yearly" && (
-                  <span className="text-[10px] font-bold text-positive bg-primary-pale px-2 py-0.5 rounded">Billed annually at £564</span>
+                  <span className="text-[10px] font-bold text-positive bg-primary-pale px-2 py-0.5 rounded">Billed annually at £564 — save £144/yr</span>
                 )}
                 <ul className="space-y-3.5 text-xs text-body-text mt-4">
                   <li className="flex items-start gap-2.5">
@@ -832,6 +959,10 @@ export default function MarketingPage() {
                   </li>
                   <li className="flex items-start gap-2.5">
                     <Check className="w-4 h-4 text-positive flex-shrink-0 mt-0.5" />
+                    <span>White-label client booking portal</span>
+                  </li>
+                  <li className="flex items-start gap-2.5">
+                    <Check className="w-4 h-4 text-positive flex-shrink-0 mt-0.5" />
                     <span>Dedicated 24/7 account manager</span>
                   </li>
                   <li className="flex items-start gap-2.5">
@@ -841,15 +972,18 @@ export default function MarketingPage() {
                 </ul>
               </CardContent>
               <div className="p-6 pt-0 mt-auto">
-                <button 
-                  onClick={() => {
-                    setShowSalesToast(true);
-                    setTimeout(() => setShowSalesToast(false), 4000);
-                  }}
-                  className="button-tertiary w-full text-center py-3 cursor-pointer"
-                >
-                  Contact Sales
-                </button>
+                {isSignedIn ? (
+                  <Link
+                    href={`/dashboard/billing?plan=${billingPeriod === "monthly" ? "MONTHLY" : "YEARLY"}`}
+                    className="button-tertiary w-full text-center py-3 block"
+                  >
+                    Subscribe to Pro — £{billingPeriod === "monthly" ? "59" : "47"}/mo
+                  </Link>
+                ) : (
+                  <Link href="/for-professionals" className="button-tertiary w-full text-center block py-3">
+                    Start 14-Day Free Trial
+                  </Link>
+                )}
               </div>
             </Card>
           </div>

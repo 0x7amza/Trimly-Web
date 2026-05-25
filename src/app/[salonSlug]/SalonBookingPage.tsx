@@ -27,7 +27,8 @@ import {
   Plus,
   Minus,
   ShoppingBag,
-  Trash2
+  Trash2,
+  ExternalLink
 } from "lucide-react";
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || "pk_test_mock");
@@ -44,21 +45,23 @@ const DEFAULT_BUSINESS_HOURS = [
   { day: 0, open: "09:00", close: "17:00", isClosed: true },
 ];
 
-// Reusable SVG Street Grid Map Mock Component
+// Reusable Leaflet/OpenStreetMap Frame layout
 function MockMap({ address, mapUrl }: { address: string; mapUrl?: string }) {
-  let iframeSrc = "";
+  let query = "";
   if (mapUrl?.trim()) {
-    if (mapUrl.includes("src=\"")) {
-      const match = mapUrl.match(/src="([^"]+)"/);
-      iframeSrc = match ? match[1] : mapUrl;
+    const trimmed = mapUrl.trim();
+    // Parse google maps iframe or search link if pasted
+    if (trimmed.includes("src=\"")) {
+      const match = trimmed.match(/src="([^"]+)"/);
+      query = match ? match[1] : trimmed;
     } else {
-      iframeSrc = mapUrl;
+      query = trimmed;
     }
   } else if (address?.trim()) {
-    iframeSrc = `https://maps.google.com/maps?q=${encodeURIComponent(address)}&output=embed&z=15`;
+    query = address.trim();
   }
 
-  if (!iframeSrc) {
+  if (!query) {
     return (
       <div className="relative h-48 w-full bg-canvas-soft border border-ink/5 rounded-2xl overflow-hidden flex items-center justify-center shadow-inner">
         <div className="flex flex-col items-center gap-2 text-mute-text">
@@ -69,16 +72,65 @@ function MockMap({ address, mapUrl }: { address: string; mapUrl?: string }) {
     );
   }
 
+  const srcDoc = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+      <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+      <style>
+        body, html, #map { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; }
+        .leaflet-popup-content-wrapper { border-radius: 12px; font-family: sans-serif; font-size: 12px; font-weight: bold; }
+      </style>
+    </head>
+    <body>
+      <div id="map"></div>
+      <script>
+        var query = decodeURIComponent("${encodeURIComponent(query)}");
+        var map = L.map('map', { zoomControl: true, scrollWheelZoom: false }).setView([54.5, -4], 6);
+        
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '&copy; OpenStreetMap'
+        }).addTo(map);
+
+        var cleanQuery = query.replace(/\\s+/g, '');
+        var coords = cleanQuery.split(',');
+        if (coords.length === 2 && !isNaN(parseFloat(coords[0])) && !isNaN(parseFloat(coords[1]))) {
+          var lat = parseFloat(coords[0]);
+          var lng = parseFloat(coords[1]);
+          map.setView([lat, lng], 15);
+          L.marker([lat, lng]).addTo(map).bindPopup(query).openPopup();
+        } else {
+          var url = 'https://nominatim.openstreetmap.org/search?format=json&q=' + encodeURIComponent(query);
+          fetch(url, { headers: { 'User-Agent': 'TrimlyBookingApp/1.0' } })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+              if (data && data.length > 0) {
+                var lat = parseFloat(data[0].lat);
+                var lon = parseFloat(data[0].lon);
+                map.setView([lat, lon], 15);
+                L.marker([lat, lon]).addTo(map).bindPopup(query).openPopup();
+              }
+            }).catch(function(e) {
+              console.error(e);
+            });
+        }
+      </script>
+    </body>
+    </html>
+  `;
+
   return (
-    <div className="relative h-48 w-full rounded-2xl overflow-hidden border border-ink/10 shadow-sm">
+    <div className="relative h-48 w-full rounded-2xl overflow-hidden border border-ink/10 shadow-sm bg-canvas-soft">
       <iframe
-        title="Shop Location"
+        title="Interactive Map"
         width="100%"
         height="100%"
         style={{ border: 0 }}
         loading="lazy"
-        referrerPolicy="no-referrer-when-downgrade"
-        src={iframeSrc}
+        srcDoc={srcDoc}
       />
     </div>
   );
@@ -318,6 +370,47 @@ export default function SalonBookingPage({
   const [activeLightboxIndex, setActiveLightboxIndex] = useState<number | null>(null);
   const [step, setStep] = useState(1); // 1 = Barber, 3 = Date & Time, 4 = Verification, 5 = Payment, 6 = Success
 
+  // Real Reviews State & Handlers
+  const [realReviews, setRealReviews] = useState<Array<{ id: string; customerName: string; rating: number; comment?: string; createdAt: string }>>([]);
+  const [showReviewsModal, setShowReviewsModal] = useState(false);
+  const [newReviewName, setNewReviewName] = useState("");
+  const [newReviewRating, setNewReviewRating] = useState(5);
+  const [newReviewComment, setNewReviewComment] = useState("");
+
+  useEffect(() => {
+    if (!salonSlug) return;
+    api.reviews.getBySlug(salonSlug)
+      .then(res => {
+        if (res.success) setRealReviews(res.data);
+      })
+      .catch(console.error);
+  }, [salonSlug]);
+
+  const totalReviews = realReviews.length;
+  const avgRating = totalReviews > 0
+    ? realReviews.reduce((sum, r) => sum + r.rating, 0) / totalReviews
+    : 4.9; // Default fallback if no reviews
+
+  const handleReviewSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newReviewName.trim() || !newReviewComment.trim()) return;
+    try {
+      const res = await api.reviews.create(salonSlug, {
+        customerName: newReviewName.trim(),
+        rating: newReviewRating,
+        comment: newReviewComment.trim(),
+      });
+      if (res.success) {
+        setRealReviews(prev => [res.data, ...prev]);
+        setNewReviewName("");
+        setNewReviewRating(5);
+        setNewReviewComment("");
+      }
+    } catch (err) {
+      alert("Failed to submit review.");
+    }
+  };
+
   // Slots & Scheduling States
   const [dates, setDates] = useState<Date[]>([]);
   const [selectedDate, setSelectedDate] = useState<string>("");
@@ -335,12 +428,89 @@ export default function SalonBookingPage({
   const [isNewCustomer, setIsNewCustomer] = useState(false);
   const [customer, setCustomer] = useState<Customer | null>(null);
 
-  const gallery = shop?.images && shop.images.length > 0 ? shop.images : (shop?.galleryPictures || [
-    "https://images.unsplash.com/photo-1621605815971-fbc98d665033?auto=format&fit=crop&w=800&q=80",
-    "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&w=800&q=80",
-    "https://images.unsplash.com/photo-1595425970377-c9703cf48b6d?auto=format&fit=crop&w=800&q=80",
-    "https://images.unsplash.com/photo-1605497746444-ac9dbd34f196?auto=format&fit=crop&w=800&q=80"
-  ]);
+  const gallery = shop?.images && shop.images.length > 0
+    ? shop.images
+    : (shop?.galleryPictures && shop.galleryPictures.length > 0
+        ? shop.galleryPictures
+        : [
+            "https://images.unsplash.com/photo-1621605815971-fbc98d665033?auto=format&fit=crop&w=800&q=80",
+            "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&w=800&q=80",
+            "https://images.unsplash.com/photo-1595425970377-c9703cf48b6d?auto=format&fit=crop&w=800&q=80",
+            "https://images.unsplash.com/photo-1605497746444-ac9dbd34f196?auto=format&fit=crop&w=800&q=80"
+          ]);
+
+  const renderGallery = () => {
+    const validGallery = gallery.filter(Boolean);
+    if (validGallery.length === 1) {
+      return (
+        <div 
+          onClick={() => setActiveLightboxIndex(0)}
+          className="w-full h-64 md:h-96 relative overflow-hidden rounded-2xl border border-ink/5 bg-canvas cursor-pointer group shadow-sm"
+        >
+          <img src={validGallery[0]} alt="Salon details" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.01]" />
+        </div>
+      );
+    }
+    if (validGallery.length === 2) {
+      return (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 h-64 md:h-80 w-full rounded-2xl overflow-hidden shadow-sm border border-ink/5 bg-canvas">
+          <div onClick={() => setActiveLightboxIndex(0)} className="h-full relative overflow-hidden group cursor-pointer">
+            <img src={validGallery[0]} alt="Salon details" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+          </div>
+          <div onClick={() => setActiveLightboxIndex(1)} className="h-full relative overflow-hidden group cursor-pointer">
+            <img src={validGallery[1]} alt="Salon details" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+          </div>
+        </div>
+      );
+    }
+    if (validGallery.length === 3) {
+      return (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 h-64 md:h-80 w-full rounded-2xl overflow-hidden shadow-sm border border-ink/5 bg-canvas">
+          <div onClick={() => setActiveLightboxIndex(0)} className="md:col-span-2 h-full relative overflow-hidden group cursor-pointer">
+            <img src={validGallery[0]} alt="Salon details" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+          </div>
+          <div className="flex flex-col gap-4 h-full">
+            <div onClick={() => setActiveLightboxIndex(1)} className="h-1/2 relative overflow-hidden group cursor-pointer">
+              <img src={validGallery[1]} alt="Salon details" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+            </div>
+            <div onClick={() => setActiveLightboxIndex(2)} className="h-1/2 relative overflow-hidden group cursor-pointer">
+              <img src={validGallery[2]} alt="Salon details" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 h-64 md:h-80 w-full rounded-2xl overflow-hidden shadow-sm border border-ink/5 bg-canvas">
+        <div 
+          onClick={() => setActiveLightboxIndex(0)}
+          className="md:col-span-2 h-full relative overflow-hidden group cursor-pointer"
+        >
+          <img src={validGallery[0]} alt="Salon details" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+        </div>
+        <div className="hidden md:flex flex-col gap-4 h-full">
+          <div 
+            onClick={() => setActiveLightboxIndex(1)}
+            className="h-1/2 relative overflow-hidden group cursor-pointer"
+          >
+            <img src={validGallery[1] || validGallery[0]} alt="Salon gallery" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+          </div>
+          <div 
+            onClick={() => setActiveLightboxIndex(2)}
+            className="h-1/2 relative overflow-hidden group cursor-pointer"
+          >
+            <img src={validGallery[2] || validGallery[0]} alt="Salon gallery" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+          </div>
+        </div>
+        <div 
+          onClick={() => setActiveLightboxIndex(3)}
+          className="hidden md:block h-full relative overflow-hidden group cursor-pointer"
+        >
+          <img src={validGallery[3] || validGallery[0]} alt="Salon gallery" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+        </div>
+      </div>
+    );
+  };
 
   // Payment Confirmation
   const [isPaying, setIsPaying] = useState(false);
@@ -547,7 +717,7 @@ export default function SalonBookingPage({
         }
       }
     } catch (err) {
-      alert("Invalid verification code. Enter mock code 123456.");
+      alert("Invalid verification code. Please check the code and try again.");
     } finally {
       setIsVerifying(false);
     }
@@ -643,42 +813,27 @@ export default function SalonBookingPage({
           <div className="flex items-center gap-2.5 bg-canvas border border-ink/5 p-3 rounded-xl shadow-sm">
             <div className="flex items-center gap-0.5 text-warning">
               <Star className="w-4 h-4 fill-warning" />
-              <span className="font-extrabold text-sm text-ink ml-1">4.9</span>
+              <span className="font-extrabold text-sm text-ink ml-1">{avgRating.toFixed(1)}</span>
             </div>
             <div className="h-4 w-px bg-ink/10" />
-            <span className="text-[11px] font-bold text-mute-text">154 Reviews</span>
+            <button
+              onClick={() => setShowReviewsModal(true)}
+              className="text-[11px] font-bold text-mute-text hover:text-ink hover:underline cursor-pointer"
+            >
+              {totalReviews} {totalReviews === 1 ? "Review" : "Reviews"}
+            </button>
+            <div className="h-4 w-px bg-ink/10" />
+            <button
+              onClick={() => setShowReviewsModal(true)}
+              className="text-[11px] font-extrabold text-primary-deep bg-primary-pale hover:bg-primary px-2 py-0.5 rounded-md transition-colors cursor-pointer"
+            >
+              Notes
+            </button>
           </div>
         </div>
 
-        {/* Airbnb/Planity Styled Gallery Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 h-64 md:h-80 w-full rounded-2xl overflow-hidden shadow-sm border border-ink/5 bg-canvas">
-          <div 
-            onClick={() => setActiveLightboxIndex(0)}
-            className="md:col-span-2 h-full relative overflow-hidden group cursor-pointer"
-          >
-            <img src={gallery[0]} alt="Salon details" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
-          </div>
-          <div className="hidden md:flex flex-col gap-4 h-full">
-            <div 
-              onClick={() => setActiveLightboxIndex(1)}
-              className="h-1/2 relative overflow-hidden group cursor-pointer"
-            >
-              <img src={gallery[1] || gallery[0]} alt="Salon gallery" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
-            </div>
-            <div 
-              onClick={() => setActiveLightboxIndex(2)}
-              className="h-1/2 relative overflow-hidden group cursor-pointer"
-            >
-              <img src={gallery[2] || gallery[0]} alt="Salon gallery" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
-            </div>
-          </div>
-          <div 
-            onClick={() => setActiveLightboxIndex(3)}
-            className="hidden md:block h-full relative overflow-hidden group cursor-pointer"
-          >
-            <img src={gallery[3] || gallery[0]} alt="Salon gallery" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
-          </div>
-        </div>
+        {/* Dynamic clean photo gallery */}
+        {renderGallery()}
 
         {/* Split Section Layout: Left Column = Services + Products inline scroll, Right Column = Sidebar */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
@@ -854,7 +1009,20 @@ export default function SalonBookingPage({
 
             {/* Styled Map location */}
             <div className="bg-canvas border border-ink/5 p-5 rounded-wise shadow-sm space-y-3">
-              <h4 className="text-xs font-black uppercase tracking-wider text-mute-text">Location & Map</h4>
+              <div className="flex justify-between items-center">
+                <h4 className="text-xs font-black uppercase tracking-wider text-mute-text">Location & Map</h4>
+                {address && (
+                  <a 
+                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[10px] font-bold text-ink hover:underline flex items-center gap-1 inline-flex"
+                  >
+                    Open Google Maps
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                )}
+              </div>
               <MockMap address={address} mapUrl={shop?.mapUrl} />
             </div>
 
@@ -1084,7 +1252,7 @@ export default function SalonBookingPage({
                         <div className="flex justify-between items-center">
                           <div>
                             <h3 className="text-lg font-black text-ink">Client Verification</h3>
-                            <p className="text-xs text-mute-text">Secure appointment booking with mock OTP.</p>
+                            <p className="text-xs text-mute-text">Secure appointment booking with SMS OTP.</p>
                           </div>
                           <button
                             onClick={() => {
@@ -1094,7 +1262,7 @@ export default function SalonBookingPage({
                                 setStep(3);
                               }
                             }}
-                            className="text-xs font-bold text-mute-text hover:text-ink"
+                            className="text-xs font-bold text-mute-text hover:text-ink cursor-pointer"
                           >
                             ← Back
                           </button>
@@ -1131,7 +1299,7 @@ export default function SalonBookingPage({
                                 required
                               />
                             </div>
-                            <button type="submit" className="button-primary w-full py-4" disabled={isVerifying}>
+                            <button type="submit" className="button-primary w-full py-4 cursor-pointer" disabled={isVerifying}>
                               {isVerifying ? "Registering..." : "Complete & Continue"}
                             </button>
                           </form>
@@ -1150,14 +1318,14 @@ export default function SalonBookingPage({
                                 required
                               />
                             </div>
-                            <button type="submit" className="button-primary w-full py-4">
+                            <button type="submit" className="button-primary w-full py-4 cursor-pointer">
                               Send Code
                             </button>
                           </form>
                         ) : (
                           <form onSubmit={handleVerifyOtp} className="space-y-4">
                             <div className="bg-primary-pale p-3 rounded-xl border border-primary/20 text-xs font-bold text-ink-deep text-center">
-                              Mock OTP Code: enter <strong>123456</strong>
+                              Enter the 6-digit verification code sent to your phone.
                             </div>
                             <div>
                               <label className="block text-xs font-bold uppercase tracking-wider text-mute-text mb-2">
@@ -1173,13 +1341,13 @@ export default function SalonBookingPage({
                                 required
                               />
                             </div>
-                            <button type="submit" className="button-primary w-full py-4" disabled={isVerifying}>
+                            <button type="submit" className="button-primary w-full py-4 cursor-pointer" disabled={isVerifying}>
                               {isVerifying ? "Verifying..." : "Verify & Continue"}
                             </button>
                             <button
                               type="button"
                               onClick={() => setIsOtpSent(false)}
-                              className="w-full text-center text-xs font-bold text-mute-text hover:text-ink mt-2"
+                              className="w-full text-center text-xs font-bold text-mute-text hover:text-ink mt-2 cursor-pointer"
                             >
                               Change phone number
                             </button>
@@ -1188,7 +1356,7 @@ export default function SalonBookingPage({
                       </div>
 
                       <div className="text-[10px] text-mute-text">
-                        * Verification avoids spam listings. Enter mock phone and OTP <strong>123456</strong> to complete testing.
+                        * SMS verification is required to confirm bookings and prevent automated spam scheduling.
                       </div>
                     </motion.div>
                   )}
@@ -1362,6 +1530,125 @@ export default function SalonBookingPage({
             >
               <ChevronLeft className="w-6 h-6 rotate-180" />
             </button>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Reviews Modal */}
+      <AnimatePresence>
+        {showReviewsModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            {/* Blur Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowReviewsModal(false)}
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            />
+            {/* Modal Box */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-canvas border border-ink shadow-2xl rounded-wise w-full max-w-lg h-[80vh] max-h-[600px] overflow-hidden flex flex-col relative z-10 animate-fade-in"
+            >
+              {/* Header */}
+              <div className="p-6 border-b border-ink/5 flex justify-between items-center bg-canvas">
+                <div>
+                  <h3 className="text-lg font-black text-ink">Client Reviews</h3>
+                  <p className="text-xs text-mute-text">Real feedback left by verified clients</p>
+                </div>
+                <button
+                  onClick={() => setShowReviewsModal(false)}
+                  className="w-8 h-8 rounded-full border border-ink/10 flex items-center justify-center text-mute-text hover:text-ink transition-colors text-sm hover:bg-canvas-soft cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Body (Scrollable) */}
+              <div className="flex-grow overflow-y-auto p-6 space-y-6">
+                {/* Submit New Review Form */}
+                <form onSubmit={handleReviewSubmit} className="bg-canvas-soft/30 border border-ink/5 p-4 rounded-xl space-y-4">
+                  <span className="block text-xs font-black uppercase tracking-wider text-ink-deep">Leave a Review</span>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-body-text mb-1">Your Name</label>
+                      <input
+                        type="text"
+                        value={newReviewName}
+                        onChange={(e) => setNewReviewName(e.target.value)}
+                        placeholder="John Doe"
+                        className="w-full text-input py-2 px-3 text-xs font-bold"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-body-text mb-1">Rating</label>
+                      <select
+                        value={newReviewRating}
+                        onChange={(e) => setNewReviewRating(Number(e.target.value))}
+                        className="w-full bg-canvas border border-ink/10 rounded-xl py-2 px-3 text-xs font-bold text-ink focus:outline-none focus:border-ink shadow-sm cursor-pointer"
+                      >
+                        <option value={5}>⭐⭐⭐⭐⭐ (5/5)</option>
+                        <option value={4}>⭐⭐⭐⭐ (4/5)</option>
+                        <option value={3}>⭐⭐⭐ (3/5)</option>
+                        <option value={2}>⭐⭐ (2/5)</option>
+                        <option value={1}>⭐ (1/5)</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-body-text mb-1">Notes & Comments</label>
+                    <textarea
+                      value={newReviewComment}
+                      onChange={(e) => setNewReviewComment(e.target.value)}
+                      placeholder="Share details about your service, haircut, or styling..."
+                      className="w-full bg-canvas border border-ink/10 rounded-xl py-2 px-3 text-xs font-bold text-ink placeholder:text-mute-text/40 focus:outline-none focus:border-ink transition-colors shadow-sm h-16 resize-none"
+                      required
+                    />
+                  </div>
+                  <button type="submit" className="button-primary w-full py-2.5 !text-xs cursor-pointer">
+                    Submit Review
+                  </button>
+                </form>
+
+                {/* Reviews List */}
+                <div className="space-y-4">
+                  {realReviews.length === 0 ? (
+                    <div className="text-center py-8 text-xs text-mute-text border border-dashed border-ink/10 rounded-xl">
+                      No reviews posted yet. Be the first to review!
+                    </div>
+                  ) : (
+                    realReviews.map((r) => (
+                      <div key={r.id} className="border-b border-ink/5 pb-4 last:border-0">
+                        <div className="flex justify-between items-center">
+                          <span className="font-extrabold text-sm text-ink">{r.customerName}</span>
+                          <span className="text-[10px] text-mute-text font-bold">
+                            {new Date(r.createdAt).toLocaleDateString()}
+                          </span>
+                        </div>
+                        <div className="flex items-center text-warning my-1">
+                          {Array.from({ length: 5 }).map((_, i) => (
+                            <Star
+                              key={i}
+                              className={`w-3.5 h-3.5 ${i < r.rating ? "fill-warning text-warning" : "text-canvas-soft/40"}`}
+                            />
+                          ))}
+                          <span className="text-xs text-ink font-black ml-1.5">{r.rating}.0</span>
+                        </div>
+                        {r.comment && (
+                          <p className="text-xs text-body-text font-semibold leading-relaxed bg-canvas-soft/20 p-2.5 rounded-lg border border-ink/5 mt-1">
+                            {r.comment}
+                          </p>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </motion.div>
           </div>
         )}
       </AnimatePresence>

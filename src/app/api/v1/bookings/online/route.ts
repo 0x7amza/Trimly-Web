@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
   if (customerIdOrError instanceof NextResponse) return customerIdOrError;
 
   try {
-    const { barberId, serviceId, startTime } = await request.json();
+    const { barberId, serviceId, startTime, paymentOption } = await request.json();
     if (!barberId || !serviceId || !startTime) {
       return NextResponse.json({ success: false, error: "barberId, serviceId, startTime required" }, { status: 400 });
     }
@@ -52,7 +52,8 @@ export async function POST(request: NextRequest) {
       startTime: start,
       endTime: end,
       status: "CONFIRMED",
-      paymentStatus: "PENDING",
+      paymentStatus: paymentOption === "ARRIVE" ? "PENDING" : "PENDING", // can keep PENDING or update accordingly
+      paymentOption: paymentOption || "STRIPE",
       type: "ONLINE",
     });
 

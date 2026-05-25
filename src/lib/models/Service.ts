@@ -7,6 +7,7 @@ export interface IService extends Document {
   durationMinutes: number;
   isActive: boolean;
   category?: string;
+  categoryName?: string;
 }
 
 const ServiceSchema = new Schema<IService>(
@@ -17,6 +18,7 @@ const ServiceSchema = new Schema<IService>(
     durationMinutes: { type: Number, required: true, min: 5 },
     isActive: { type: Boolean, default: true },
     category: String,
+    categoryName: String,
   },
   { timestamps: true }
 );

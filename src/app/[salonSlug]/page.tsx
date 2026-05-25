@@ -7,10 +7,10 @@ import SalonBookingPage from "./SalonBookingPage";
 export default async function CategoryOrSalonPage({
   params,
 }: {
-  params: Promise<{ categorySlug: string }>;
+  params: Promise<{ salonSlug: string }>;
 }) {
-  const { categorySlug } = await params;
-  const slug = categorySlug.toLowerCase();
+  const { salonSlug } = await params;
+  const slug = salonSlug.toLowerCase();
   const CATEGORIES = ["hairdresser", "barber", "manicure", "beauty-salon"];
 
   if (CATEGORIES.includes(slug)) {
@@ -20,7 +20,7 @@ export default async function CategoryOrSalonPage({
   // Utilizing Next.js Server Components to fetch data from GET /shops/{slug}
   let shopData = null;
   try {
-    const res = await api.shops.getBySlug(categorySlug);
+    const res = await api.shops.getBySlug(salonSlug);
     if (res.success) {
       shopData = res.data;
     }
@@ -32,5 +32,5 @@ export default async function CategoryOrSalonPage({
     notFound();
   }
 
-  return <SalonBookingPage salonSlug={categorySlug} initialShopData={shopData} />;
+  return <SalonBookingPage salonSlug={salonSlug} initialShopData={shopData} />;
 }

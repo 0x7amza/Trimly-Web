@@ -3,6 +3,9 @@
 import React, { useState, useEffect, useRef } from "react";
 import { api, Shop, BusinessHours } from "@/lib/api";
 import { useB2BAuth } from "@/components/providers";
+import { CustomCombobox } from "@/components/ui/custom-combobox";
+import { UK_CITY_OPTIONS } from "@/lib/uk-cities";
+import { compressImage } from "@/lib/image-utils";
 import {
   Building2,
   Image as ImageIcon,
@@ -39,11 +42,13 @@ export default function SettingsPage() {
 
   // Identity
   const [shopName, setShopName] = useState("");
+  const [industryType, setIndustryType] = useState<"Barber" | "Hairdresser" | "Manicure" | "Beauty Salon">("Barber");
   const [profilePicture, setProfilePicture] = useState("");
   const [galleryPictures, setGalleryPictures] = useState<string[]>([]);
   const [newGalleryUrl, setNewGalleryUrl] = useState("");
 
   // Location
+  const [city, setCity] = useState("");
   const [address, setAddress] = useState("");
   const [mapUrl, setMapUrl] = useState("");
 
@@ -67,8 +72,10 @@ export default function SettingsPage() {
         const s = res.data.shop;
         setShop(s);
         setShopName(s.name || "");
+        setIndustryType((s.industryType as any) || "Barber");
         setProfilePicture(s.profilePicture || s.profileImage || "");
         setGalleryPictures(s.galleryPictures || s.images || []);
+        setCity(s.city || "");
         setAddress(s.address || "");
         setMapUrl(s.mapUrl || "");
         setBusinessHours(s.businessHours && s.businessHours.length > 0 ? s.businessHours : DEFAULT_HOURS);
@@ -88,7 +95,8 @@ export default function SettingsPage() {
     setUploading(true);
     setError("");
     try {
-      const res = await api.upload(file);
+      const compressed = await compressImage(file);
+      const res = await api.upload(compressed);
       if (res.success) setProfilePicture(res.data.url);
     } catch (err: any) {
       setError(err.message || "File upload failed.");
@@ -101,7 +109,8 @@ export default function SettingsPage() {
     setUploading(true);
     setError("");
     try {
-      const res = await api.upload(file);
+      const compressed = await compressImage(file);
+      const res = await api.upload(compressed);
       if (res.success) setGalleryPictures((prev) => [...prev, res.data.url]);
     } catch (err: any) {
       setError(err.message || "File upload failed.");
@@ -145,8 +154,10 @@ export default function SettingsPage() {
     try {
       const res = await api.shops.updateMe({
         name: shopName,
+        industryType,
         profilePicture,
         galleryPictures,
+        city,
         address,
         mapUrl,
         businessHours,
@@ -222,6 +233,26 @@ export default function SettingsPage() {
                   className={inputCls}
                 />
               </div>
+              {/* Category */}
+              <div className="space-y-1.5">
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-body-text">Category</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {(["Barber", "Hairdresser", "Manicure", "Beauty Salon"] as const).map((cat) => (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => setIndustryType(cat)}
+                      className={`py-2.5 px-3 rounded-xl text-xs font-bold border transition-all text-left ${
+                        industryType === cat
+                          ? "bg-primary border-ink text-ink shadow-sm"
+                          : "bg-canvas-soft border-ink/10 text-body-text hover:border-ink/30"
+                      }`}
+                    >
+                      {cat === "Barber" ? "✂️ Barbershop" : cat === "Hairdresser" ? "💇 Hairdresser" : cat === "Manicure" ? "💅 Manicure" : "✨ Beauty Salon"}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <div className="space-y-1.5">
                 <label className="block text-[10px] font-bold uppercase tracking-wider text-mute-text">Public Booking Directory Link</label>
                 <div className="flex items-center gap-1.5 text-xs font-bold text-ink bg-canvas-soft p-3 rounded-xl border border-ink/5">
@@ -254,13 +285,25 @@ export default function SettingsPage() {
 
             <div className="space-y-1.5">
               <label className="block text-[10px] font-bold uppercase tracking-wider text-body-text">
+                City *
+              </label>
+              <CustomCombobox
+                value={city}
+                onChange={(val) => setCity(val)}
+                options={UK_CITY_OPTIONS}
+                placeholder="Select a UK City..."
+                searchPlaceholder="Search UK cities..."
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-body-text">
                 Full Address
               </label>
               <div className="relative">
                 <MapPin className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-mute-text" />
                 <input
                   type="text"
-                  required
                   placeholder="e.g. 123 Main St, London"
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
@@ -298,11 +341,28 @@ export default function SettingsPage() {
                   style={{ border: 0 }}
                   loading="lazy"
                   referrerPolicy="no-referrer-when-downgrade"
-                  src={
-                    mapUrl.trim()
-                      ? (mapUrl.includes("src=\"") ? mapUrl.match(/src="([^"]+)"/)?.[1] || mapUrl : mapUrl)
-                      : `https://maps.google.com/maps?q=${encodeURIComponent(address)}&output=embed&z=15`
-                  }
+                  src={(() => {
+                    const trimmed = mapUrl.trim();
+                    if (!trimmed) {
+                      return address.trim() ? `https://maps.google.com/maps?q=${encodeURIComponent(address)}&output=embed&z=15` : "";
+                    }
+                    if (trimmed.includes("src=\"")) {
+                      return trimmed.match(/src="([^"]+)"/)?.[1] || trimmed;
+                    }
+                    if (trimmed.includes("/maps/embed") || trimmed.includes("output=embed")) {
+                      return trimmed;
+                    }
+                    if (trimmed.includes("google.com/maps/place/")) {
+                      try {
+                        const parts = trimmed.split("/maps/place/");
+                        if (parts[1]) {
+                          const placeName = parts[1].split("/")[0].replace(/\+/g, " ");
+                          return `https://maps.google.com/maps?q=${encodeURIComponent(placeName)}&output=embed&z=15`;
+                        }
+                      } catch {}
+                    }
+                    return `https://maps.google.com/maps?q=${encodeURIComponent(trimmed)}&output=embed&z=15`;
+                  })()}
                 />
               </div>
             )}

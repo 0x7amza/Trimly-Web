@@ -18,6 +18,7 @@ export interface IBooking extends Document {
   endTime: Date;
   status: "PENDING" | "CONFIRMED" | "CANCELLED" | "COMPLETED";
   paymentStatus: "PENDING" | "PAID" | "REFUNDED";
+  paymentOption?: "ARRIVE" | "STRIPE";
   paymentIntentId?: string;
   type: "ONLINE" | "MANUAL";
   notes?: string;
@@ -42,6 +43,11 @@ const BookingSchema = new Schema<IBooking>(
       type: String,
       enum: ["PENDING", "PAID", "REFUNDED"],
       default: "PENDING",
+    },
+    paymentOption: {
+      type: String,
+      enum: ["ARRIVE", "STRIPE"],
+      default: "STRIPE",
     },
     paymentIntentId: String,
     type: { type: String, enum: ["ONLINE", "MANUAL"], required: true },

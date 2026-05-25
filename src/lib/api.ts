@@ -208,10 +208,10 @@ export const api = {
 
   // 5. SHOPS
   shops: {
-    create: (name: string) =>
+    create: (name: string, industryType?: string, city?: string) =>
       request<{ success: boolean; data: Shop }>("/shops", {
         method: "POST",
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({ name, industryType, city }),
       }),
 
     getMe: () =>
@@ -314,6 +314,22 @@ export const api = {
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "File upload failed");
     return data;
+  },
+
+  // 11. REVIEWS
+  reviews: {
+    getBySlug: (slug: string) =>
+      request<{ success: boolean; data: Array<{ id: string; customerName: string; rating: number; comment?: string; createdAt: string }> }>(
+        `/shops/${slug}/reviews`
+      ),
+    create: (slug: string, payload: { customerName: string; rating: number; comment?: string }) =>
+      request<{ success: boolean; data: { id: string; customerName: string; rating: number; comment?: string; createdAt: string } }>(
+        `/shops/${slug}/reviews`,
+        {
+          method: "POST",
+          body: JSON.stringify(payload),
+        }
+      ),
   },
 };
 

@@ -13,7 +13,7 @@ interface Stats {
 }
 
 export default function AnalyticsPage() {
-  const { role, activeBarber } = useB2BAuth();
+  const { role, activeBarber, shop } = useB2BAuth();
   const [stats, setStats] = useState<Stats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -202,7 +202,7 @@ export default function AnalyticsPage() {
           </div>
 
           <div className="pt-6 border-t border-ink/5 text-xs text-body-text leading-relaxed">
-            🚀 <strong>Booking Tip:</strong> Share your custom booking slug <strong>doe-barbershop</strong> on your Instagram profile to increase online bookings by up to 40%!
+            🚀 <strong>Booking Tip:</strong> Share your custom booking slug <strong>{shop?.slug || "your-slug"}</strong> on your Instagram profile to increase online bookings by up to 40%!
           </div>
         </div>
       </div>

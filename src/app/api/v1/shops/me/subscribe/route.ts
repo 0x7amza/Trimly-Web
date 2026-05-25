@@ -10,9 +10,12 @@ export async function POST(request: NextRequest) {
 
   try {
     const { plan } = await request.json();
-    if (!["MONTHLY", "YEARLY"].includes(plan)) {
-      return NextResponse.json({ success: false, error: "Plan must be MONTHLY or YEARLY" }, { status: 400 });
+    if (!["MONTHLY", "YEARLY", "GROWTH_MONTHLY", "GROWTH_YEARLY", "PRO_MONTHLY", "PRO_YEARLY"].includes(plan)) {
+      return NextResponse.json({ success: false, error: "Invalid plan" }, { status: 400 });
     }
+
+    // Normalize plan to MONTHLY/YEARLY
+    const normalizedPlan: "MONTHLY" | "YEARLY" = plan.includes("YEARLY") ? "YEARLY" : "MONTHLY";
 
     await connectDB();
     const shop = await ShopModel.findOne({ ownerId: result.clerkId });
@@ -20,10 +23,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Shop not found" }, { status: 404 });
     }
 
-    // Stripe integration placeholder
+    // Stripe integration
     const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
     if (!stripeSecretKey) {
-      // No Stripe configured — return mock session for development
+      // No Stripe — activate subscription directly in dev mode
+      const periodEnd = new Date();
+      if (normalizedPlan === "MONTHLY") {
+        periodEnd.setMonth(periodEnd.getMonth() + 1);
+      } else {
+        periodEnd.setFullYear(periodEnd.getFullYear() + 1);
+      }
+
+      shop.subscription = {
+        plan: normalizedPlan,
+        status: "ACTIVE",
+        currentPeriodEnd: periodEnd,
+        trialEndsAt: undefined,
+      } as any;
+      await shop.save();
+
       return NextResponse.json({
         success: true,
         data: { sessionUrl: "/dashboard/billing?session_completed=true&mock=true" },

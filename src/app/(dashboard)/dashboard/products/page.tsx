@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { api, Product } from "@/lib/api";
 import { useB2BAuth } from "@/components/providers";
+import { compressImage } from "@/lib/image-utils";
 import {
   ShoppingBag,
   Plus,
@@ -82,7 +83,8 @@ export default function ProductsPage() {
     setUploading(true);
     setError("");
     try {
-      const res = await api.upload(file);
+      const compressed = await compressImage(file);
+      const res = await api.upload(compressed);
       if (res.success) setImageUrl(res.data.url);
     } catch (err: any) {
       setError(err.message || "Image upload failed.");

@@ -21,7 +21,10 @@ function serializeShop(shop: InstanceType<typeof ShopModel>) {
     },
     maxBarbersIncluded: shop.maxBarbersIncluded,
     profileImage: shop.profileImage,
+    profilePicture: shop.profilePicture,
     images: shop.images,
+    galleryPictures: shop.galleryPictures,
+    mapUrl: shop.mapUrl,
     industryType: shop.industryType,
     city: shop.city,
     address: shop.address,
@@ -87,10 +90,24 @@ export async function PUT(request: NextRequest) {
     const body = await request.json();
     await connectDB();
 
-    const allowedFields = ["name", "profileImage", "images", "industryType", "city", "address", "businessHours"];
-    const update: Record<string, unknown> = {};
+    const allowedFields = ["name", "profileImage", "profilePicture", "images", "galleryPictures", "mapUrl", "industryType", "city", "address", "businessHours"];
+    const update: Record<string, any> = {};
     for (const key of allowedFields) {
       if (body[key] !== undefined) update[key] = body[key];
+    }
+
+    // Sync profile picture fields
+    if (update.profilePicture && !update.profileImage) {
+      update.profileImage = update.profilePicture;
+    } else if (update.profileImage && !update.profilePicture) {
+      update.profilePicture = update.profileImage;
+    }
+
+    // Sync gallery images fields
+    if (update.galleryPictures && !update.images) {
+      update.images = update.galleryPictures;
+    } else if (update.images && !update.galleryPictures) {
+      update.galleryPictures = update.images;
     }
 
     const shop = await ShopModel.findOneAndUpdate(

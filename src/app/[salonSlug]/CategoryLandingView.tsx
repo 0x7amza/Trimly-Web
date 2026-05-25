@@ -62,6 +62,7 @@ const CATEGORY_INFO: Record<string, {
 export default function CategoryLandingView({ categorySlug }: { categorySlug: string }) {
   const { isSignedIn } = useUser();
   const [selectedLocation, setSelectedLocation] = useState<string>("All");
+  const [activeCities, setActiveCities] = useState<string[]>([]);
   const [shops, setShops] = useState<Shop[]>([]);
   const [barbers, setBarbers] = useState<Barber[]>([]);
   const [services, setServices] = useState<Service[]>([]);
@@ -84,7 +85,7 @@ export default function CategoryLandingView({ categorySlug }: { categorySlug: st
       .then(res => {
         if (res.success) {
           // Build shop-like objects from search results
-          const mappedShops: Shop[] = res.data.results.map((item: { id: string; name: string; slug: string; profileImage?: string; images?: string[]; city?: string; industryType?: string }) => ({
+          const mappedShops: Shop[] = res.data.results.map((item: { id: string; name: string; slug: string; profileImage?: string; images?: string[]; city?: string; industryType?: string; address?: string }) => ({
             id: item.id,
             ownerId: "",
             name: item.name,
@@ -94,8 +95,10 @@ export default function CategoryLandingView({ categorySlug }: { categorySlug: st
             images: item.images,
             city: item.city,
             industryType: item.industryType,
+            address: item.address,
           }));
           setShops(mappedShops);
+          setActiveCities(res.data.cities || []);
         }
       })
       .catch(console.error)
@@ -103,11 +106,13 @@ export default function CategoryLandingView({ categorySlug }: { categorySlug: st
   }, [categorySlug]);
 
 
-  const getCategorySlugForShop = (slug: string) => {
-    if (slug.includes("hairdresser")) return "hairdresser";
-    if (slug.includes("barber")) return "barber";
-    if (slug.includes("nails")) return "manicure";
-    if (slug.includes("beauty")) return "beauty-salon";
+  const getCategorySlugForShop = (industryType?: string) => {
+    if (!industryType) return "";
+    const type = industryType.toLowerCase();
+    if (type === "barber") return "barber";
+    if (type === "hairdresser") return "hairdresser";
+    if (type === "manicure") return "manicure";
+    if (type === "beauty salon" || type === "beauty-salon") return "beauty-salon";
     return "";
   };
 
@@ -123,36 +128,24 @@ export default function CategoryLandingView({ categorySlug }: { categorySlug: st
   const categoryInfo = CATEGORY_INFO[categorySlug] || {
     title: "Premium Directory",
     subtitle: "Find local professionals and book online.",
-    themeClass: "bg-gradient-to-br from-zinc-50 to-neutral-50 border-zinc-100",
-    badgeClass: "bg-zinc-100 text-zinc-800 border-zinc-200/50",
+    themeClass: "bg-gradient-to-br from-rose-50 to-pink-50/50 border-rose-100",
+    badgeClass: "bg-rose-100 text-rose-800 border-rose-200/50",
     imageUrl: "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?auto=format&fit=crop&w=600&q=80"
   };
 
-  const categoryShops = shops.filter(shop => getCategorySlugForShop(shop.slug) === categorySlug);
-  const uniqueCities = Array.from(
-    new Set(categoryShops.map(shop => shop.city).filter(Boolean))
-  ) as string[];
-
   const locationsOptions = [
     { label: "All Locations", value: "All" },
-    ...uniqueCities.map(city => ({ label: city, value: city }))
+    ...activeCities.map(city => ({ label: city, value: city }))
   ];
 
   const filteredShops = shops.filter(shop => {
-    const isOfCategory = getCategorySlugForShop(shop.slug) === categorySlug;
+    const isOfCategory = getCategorySlugForShop(shop.industryType) === categorySlug;
     if (!isOfCategory) return false;
     
     const activeLoc = selectedLocation || "All";
     if (activeLoc === "All") return true;
 
-    const shopBarbersList = getShopBarbers(shop.id);
-    return (
-      shop.city?.toLowerCase() === activeLoc.toLowerCase() ||
-      shopBarbersList.some(b => 
-        b.address?.toLowerCase().includes(activeLoc.toLowerCase()) || 
-        b.city?.toLowerCase() === activeLoc.toLowerCase()
-      )
-    );
+    return shop.city?.toLowerCase() === activeLoc.toLowerCase();
   });
 
   return (
@@ -290,8 +283,8 @@ export default function CategoryLandingView({ categorySlug }: { categorySlug: st
             {filteredShops.map((shop) => {
               const shopBarbersList = getShopBarbers(shop.id);
               const shopServicesList = getShopServices(shop.id);
-              const address = shopBarbersList[0]?.address || "Location, UK";
-              const bio = shopBarbersList[0]?.bio || "Premium beauty service specialists.";
+              const address = shop.address || (shop.city ? `${shop.city}, UK` : "Location, UK");
+              const bio = shop.industryType ? `${shop.industryType} services in ${shop.city || "UK"}.` : "Premium beauty service specialists.";
 
               return (
                 <div key={shop.id} className="card-content bg-canvas border border-ink/5 hover:border-ink/20 transition-all flex flex-col justify-between overflow-hidden p-0 group">

@@ -16,6 +16,7 @@ interface CustomComboboxProps {
   placeholder?: string;
   searchPlaceholder?: string;
   className?: string;
+  borderless?: boolean;
 }
 
 export function CustomCombobox({
@@ -25,6 +26,7 @@ export function CustomCombobox({
   placeholder = "Select an option",
   searchPlaceholder = "Search...",
   className = "",
+  borderless = false,
 }: CustomComboboxProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -66,7 +68,10 @@ export function CustomCombobox({
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between text-input bg-canvas border border-ink/10 rounded-xl px-4 py-3 font-bold text-sm text-ink cursor-pointer hover:border-ink/30 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all text-left"
+        className={borderless
+          ? "w-full flex items-center justify-between bg-transparent border-0 outline-none text-ink py-1 text-sm font-semibold placeholder:text-mute-text focus:ring-0 text-left cursor-pointer"
+          : "w-full flex items-center justify-between text-input bg-canvas border border-ink/10 rounded-xl px-4 py-3 font-bold text-sm text-ink cursor-pointer hover:border-ink/30 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all text-left"
+        }
       >
         <span className="truncate">
           {selectedOption ? selectedOption.label : placeholder}

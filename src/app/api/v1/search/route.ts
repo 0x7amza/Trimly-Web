@@ -34,13 +34,21 @@ export async function GET(request: NextRequest) {
       .limit(limit)
       .lean();
 
+    // Fetch distinct active cities for this category/industryType
+    const citiesFilter: Record<string, any> = {};
+    if (industryType) {
+      citiesFilter.industryType = { $regex: new RegExp(industryType, "i") };
+    }
+    const rawCities = await ShopModel.distinct("city", citiesFilter);
+    const activeCities = rawCities.filter(Boolean);
+
     const results = shops.map((s) => ({
       type: "shop",
       id: s._id.toString(),
       name: s.name,
       slug: s.slug,
-      profileImage: s.profileImage,
-      images: s.images,
+      profileImage: s.profileImage || (s as any).profilePicture,
+      images: s.images?.length ? s.images : (s as any).galleryPictures,
       industryType: s.industryType,
       city: s.city,
       address: s.address,
@@ -50,6 +58,7 @@ export async function GET(request: NextRequest) {
       success: true,
       data: {
         results,
+        cities: activeCities,
         pagination: {
           total,
           page,

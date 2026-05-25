@@ -7,10 +7,10 @@ export default async function CategoryOrSalonLayout({
   params,
 }: {
   children: React.ReactNode;
-  params: Promise<{ categorySlug: string }>;
+  params: Promise<{ salonSlug: string }>;
 }) {
-  const { categorySlug } = await params;
-  const slug = categorySlug.toLowerCase();
+  const { salonSlug } = await params;
+  const slug = salonSlug.toLowerCase();
   
   const RESERVED_SLUGS = ["dashboard", "billing", "pricing", "api", "login", "admin", "settings", "register", "auth"];
   if (RESERVED_SLUGS.includes(slug)) {
@@ -24,7 +24,7 @@ export default async function CategoryOrSalonLayout({
   }
 
   try {
-    const res = await api.shops.getBySlug(categorySlug);
+    const res = await api.shops.getBySlug(salonSlug);
     if (!res.success) {
       notFound();
     }

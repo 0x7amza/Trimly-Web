@@ -35,13 +35,10 @@ export default function MarketingLayout({
           </Link>
 
           <nav className="hidden md:flex items-center gap-8">
-            <Link href="/discover" className="text-sm font-bold text-body-text hover:text-ink transition-colors">
-              Find a Barbershop
-            </Link>
             <Link href="/#features" className="text-sm font-bold text-body-text hover:text-ink transition-colors">
               Features
             </Link>
-            <Link href="/tarifs" className="text-sm font-bold text-body-text hover:text-ink transition-colors">
+            <Link href="/#pricing" className="text-sm font-bold text-body-text hover:text-ink transition-colors">
               Pricing
             </Link>
           </nav>
@@ -117,8 +114,8 @@ export default function MarketingLayout({
             <h4 className="font-semibold text-white mb-4">Product</h4>
             <ul className="flex flex-col gap-2 text-sm text-canvas-soft/75">
               <li><Link href="/#features" className="hover:text-primary transition-colors">Features</Link></li>
-              <li><Link href="/tarifs" className="hover:text-primary transition-colors">Pricing</Link></li>
-              <li><Link href="/doe-barbershop" className="hover:text-primary transition-colors">Booking Demo</Link></li>
+              <li><Link href="/#pricing" className="hover:text-primary transition-colors">Pricing</Link></li>
+              <li><Link href="/barber" className="hover:text-primary transition-colors">Explore Barbers</Link></li>
             </ul>
           </div>
 
