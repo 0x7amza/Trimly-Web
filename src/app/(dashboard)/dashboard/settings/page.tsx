@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { api, Shop, BusinessHours } from "@/lib/api";
 import { useB2BAuth } from "@/components/providers";
 import { CustomCombobox } from "@/components/ui/custom-combobox";
-import { UK_CITY_OPTIONS } from "@/lib/uk-cities";
+import { COUNTRY_OPTIONS, COUNTRIES } from "@/lib/locations";
 import { compressImage } from "@/lib/image-utils";
 import {
   Building2,
@@ -42,7 +42,8 @@ export default function SettingsPage() {
 
   // Identity
   const [shopName, setShopName] = useState("");
-  const [industryType, setIndustryType] = useState<"Barber" | "Hairdresser" | "Manicure" | "Beauty Salon">("Barber");
+  const [country, setCountry] = useState("");
+  const [state, setState] = useState("");
   const [profilePicture, setProfilePicture] = useState("");
   const [galleryPictures, setGalleryPictures] = useState<string[]>([]);
   const [newGalleryUrl, setNewGalleryUrl] = useState("");
@@ -63,6 +64,9 @@ export default function SettingsPage() {
   const profileFileRef = useRef<HTMLInputElement>(null);
   const galleryFileRef = useRef<HTMLInputElement>(null);
 
+  const availableStates = COUNTRIES.find((c) => c.name === country)?.states || [];
+  const stateOptions = availableStates.map((s) => ({ value: s, label: s }));
+
   const loadSettings = async () => {
     if (!activeBarber) return;
     setLoading(true);
@@ -72,7 +76,8 @@ export default function SettingsPage() {
         const s = res.data.shop;
         setShop(s);
         setShopName(s.name || "");
-        setIndustryType((s.industryType as any) || "Barber");
+        setCountry(s.country || "");
+        setState(s.state || "");
         setProfilePicture(s.profilePicture || s.profileImage || "");
         setGalleryPictures(s.galleryPictures || s.images || []);
         setCity(s.city || "");
@@ -145,7 +150,11 @@ export default function SettingsPage() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!shopName.trim()) {
-      setError("Salon name is required.");
+      setError("Barbershop name is required.");
+      return;
+    }
+    if (!country || !state) {
+      setError("Country and State/Governorate are required.");
       return;
     }
     setSaving(true);
@@ -154,10 +163,11 @@ export default function SettingsPage() {
     try {
       const res = await api.shops.updateMe({
         name: shopName,
-        industryType,
+        country,
+        state,
         profilePicture,
         galleryPictures,
-        city,
+        city: state, // Sync city with state
         address,
         mapUrl,
         businessHours,
@@ -233,26 +243,7 @@ export default function SettingsPage() {
                   className={inputCls}
                 />
               </div>
-              {/* Category */}
-              <div className="space-y-1.5">
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-body-text">Category</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {(["Barber", "Hairdresser", "Manicure", "Beauty Salon"] as const).map((cat) => (
-                    <button
-                      key={cat}
-                      type="button"
-                      onClick={() => setIndustryType(cat)}
-                      className={`py-2.5 px-3 rounded-xl text-xs font-bold border transition-all text-left ${
-                        industryType === cat
-                          ? "bg-primary border-ink text-ink shadow-sm"
-                          : "bg-canvas-soft border-ink/10 text-body-text hover:border-ink/30"
-                      }`}
-                    >
-                      {cat === "Barber" ? "✂️ Barbershop" : cat === "Hairdresser" ? "💇 Hairdresser" : cat === "Manicure" ? "💅 Manicure" : "✨ Beauty Salon"}
-                    </button>
-                  ))}
-                </div>
-              </div>
+
               <div className="space-y-1.5">
                 <label className="block text-[10px] font-bold uppercase tracking-wider text-mute-text">Public Booking Directory Link</label>
                 <div className="flex items-center gap-1.5 text-xs font-bold text-ink bg-canvas-soft p-3 rounded-xl border border-ink/5">
@@ -283,18 +274,35 @@ export default function SettingsPage() {
               </p>
             </div>
 
-            <div className="space-y-1.5">
-              <label className="block text-[10px] font-bold uppercase tracking-wider text-body-text">
-                City *
-              </label>
-              <CustomCombobox
-                value={city}
-                onChange={(val) => setCity(val)}
-                options={UK_CITY_OPTIONS}
-                placeholder="Select a UK City..."
-                searchPlaceholder="Search UK cities..."
-              />
-            </div>
+             <div className="space-y-1.5">
+               <label className="block text-[10px] font-bold uppercase tracking-wider text-body-text">
+                 Country *
+               </label>
+               <CustomCombobox
+                 value={country}
+                 onChange={(val) => {
+                   setCountry(val);
+                   setState("");
+                 }}
+                 options={COUNTRY_OPTIONS}
+                 placeholder="Select Country..."
+                 searchPlaceholder="Search countries..."
+               />
+             </div>
+
+             <div className="space-y-1.5">
+               <label className="block text-[10px] font-bold uppercase tracking-wider text-body-text">
+                 State / Governorate *
+               </label>
+               <CustomCombobox
+                 value={state}
+                 onChange={(val) => setState(val)}
+                 options={stateOptions}
+                 placeholder={country ? "Select State/Governorate..." : "Select Country first..."}
+                 searchPlaceholder="Search..."
+                 disabled={!country}
+               />
+             </div>
 
             <div className="space-y-1.5">
               <label className="block text-[10px] font-bold uppercase tracking-wider text-body-text">

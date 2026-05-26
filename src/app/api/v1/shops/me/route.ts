@@ -25,7 +25,8 @@ function serializeShop(shop: InstanceType<typeof ShopModel>) {
     images: shop.images,
     galleryPictures: shop.galleryPictures,
     mapUrl: shop.mapUrl,
-    industryType: shop.industryType,
+    country: shop.country,
+    state: shop.state,
     city: shop.city,
     address: shop.address,
     businessHours: shop.businessHours,
@@ -90,10 +91,15 @@ export async function PUT(request: NextRequest) {
     const body = await request.json();
     await connectDB();
 
-    const allowedFields = ["name", "profileImage", "profilePicture", "images", "galleryPictures", "mapUrl", "industryType", "city", "address", "businessHours"];
+    const allowedFields = ["name", "profileImage", "profilePicture", "images", "galleryPictures", "mapUrl", "country", "state", "city", "address", "businessHours"];
     const update: Record<string, any> = {};
     for (const key of allowedFields) {
       if (body[key] !== undefined) update[key] = body[key];
+    }
+
+    // Auto-sync city with state update
+    if (update.state) {
+      update.city = update.state;
     }
 
     // Sync profile picture fields

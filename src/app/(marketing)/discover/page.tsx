@@ -26,16 +26,13 @@ function DiscoverDirectory() {
   const [isLoading, setIsLoading] = useState(true);
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("All");
   const [selectedLocation, setSelectedLocation] = useState("All");
 
   // Parse URL query params on load
   useEffect(() => {
     const query = searchParams.get("query") || "";
-    const category = searchParams.get("category") || "All";
     const location = searchParams.get("location") || "All";
     if (query) setSearchQuery(query);
-    if (category) setSelectedCategory(category);
     if (location) setSelectedLocation(location);
   }, [searchParams]);
 
@@ -44,7 +41,6 @@ function DiscoverDirectory() {
     setIsLoading(true);
     const params: Record<string, string> = {};
     if (searchQuery) params.searchQuery = searchQuery;
-    if (selectedCategory !== "All") params.industryType = selectedCategory;
     if (selectedLocation !== "All") params.city = selectedLocation;
 
     fetch(`/api/v1/search?${new URLSearchParams(params)}`)
@@ -54,36 +50,14 @@ function DiscoverDirectory() {
       })
       .catch(console.error)
       .finally(() => setIsLoading(false));
-  }, [searchQuery, selectedCategory, selectedLocation]);
+  }, [searchQuery, selectedLocation]);
 
   const uniqueCities = Array.from(new Set(results.map((r) => r.city).filter(Boolean))) as string[];
-
-  const categoriesList = [
-    { label: "All Categories", value: "All" },
-    { label: "Barber", value: "Barber" },
-    { label: "Hairdresser", value: "Hairdresser" },
-    { label: "Manicure", value: "Manicure" },
-    { label: "Beauty Salon", value: "Beauty Salon" },
-  ];
 
   const locationsOptions = [
     { value: "All", label: "All Locations" },
     ...uniqueCities.map((city) => ({ value: city, label: city })),
   ];
-
-  const getCategoryIcon = (type?: string) => {
-    if (type === "Hairdresser") return Scissors;
-    if (type === "Manicure") return Gem;
-    if (type === "Beauty Salon") return Sparkles;
-    return Scissors;
-  };
-
-  const categoryFallbackImages: Record<string, string> = {
-    Hairdresser: "https://images.unsplash.com/photo-1562322140-8baeececf3df?auto=format&fit=crop&w=600&q=80",
-    Barber: "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&w=600&q=80",
-    Manicure: "https://images.unsplash.com/photo-1604654894610-df63bc536371?auto=format&fit=crop&w=600&q=80",
-    "Beauty Salon": "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?auto=format&fit=crop&w=600&q=80",
-  };
 
   return (
     <div className="py-12 px-6 bg-canvas-soft min-h-screen">
@@ -91,32 +65,28 @@ function DiscoverDirectory() {
 
         <div>
           <h1 className="text-3xl font-black text-ink tracking-tight flex items-center gap-2">
-            <Search className="w-7 h-7 text-ink" /> Discover Local Professionals
+            <Search className="w-7 h-7 text-ink" /> Discover Local Barbershops
           </h1>
           <p className="text-xs text-mute-text mt-1">
-            Browse and instantly book top-rated salons, independent hairdressers, manicure bars, and wellness spas.
+            Browse and instantly book top-rated barbershops and master barbers near you.
           </p>
         </div>
 
         {/* Filters */}
         <div className="bg-canvas border border-ink/5 p-5 rounded-wise shadow-sm space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-[10px] font-bold text-mute-text uppercase tracking-wider mb-2">Search Name or Service</label>
+              <label className="block text-[10px] font-bold text-mute-text uppercase tracking-wider mb-2">Search Barbershop Name</label>
               <div className="relative">
                 <Search className="absolute left-3 top-3.5 w-4 h-4 text-mute-text" />
                 <input
                   type="text"
-                  placeholder="Fade, manicure, blowdry..."
+                  placeholder="e.g. Gentlemen's..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="text-input pl-10 !py-2.5 font-bold placeholder:text-mute-text/70"
                 />
               </div>
-            </div>
-            <div>
-              <label className="block text-[10px] font-bold text-mute-text uppercase tracking-wider mb-2">Filter by Category</label>
-              <CustomSelect value={selectedCategory} onChange={setSelectedCategory} options={categoriesList} />
             </div>
             <div>
               <label className="block text-[10px] font-bold text-mute-text uppercase tracking-wider mb-2">Filter by Location</label>
@@ -135,12 +105,12 @@ function DiscoverDirectory() {
         ) : results.length === 0 ? (
           <div className="card-content bg-canvas border border-ink/5 p-16 text-center flex flex-col items-center justify-center">
             <Landmark className="w-16 h-16 text-mute-text mb-4 stroke-1" />
-            <h3 className="font-extrabold text-lg text-ink">No Results Found</h3>
+            <h3 className="font-extrabold text-lg text-ink">No Barbershops Found</h3>
             <p className="text-xs text-body-text max-w-sm mt-1.5 leading-relaxed">
-              No salons match your current filters. Try broadening your search.
+              No barbershops match your current filters. Try broadening your search.
             </p>
             <button
-              onClick={() => { setSearchQuery(""); setSelectedCategory("All"); setSelectedLocation("All"); }}
+              onClick={() => { setSearchQuery(""); setSelectedLocation("All"); }}
               className="button-tertiary text-xs mt-6"
             >
               Reset All Filters
@@ -149,16 +119,15 @@ function DiscoverDirectory() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {results.map((item) => {
-              const Icon = getCategoryIcon(item.industryType);
-              const imgUrl = item.profileImage || item.images?.[0] || categoryFallbackImages[item.industryType || ""] || categoryFallbackImages["Barber"];
+              const imgUrl = item.profileImage || item.images?.[0] || "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&w=600&q=80";
               return (
                 <div key={item.id} className="card-content bg-canvas border border-ink/5 hover:border-ink/20 transition-all flex flex-col justify-between overflow-hidden p-0 group">
                   <div className="h-28 relative overflow-hidden flex items-end justify-between px-6 pb-3">
                     <img src={imgUrl} alt={item.name} className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/15 to-transparent" />
                     <span className="text-[10px] font-bold bg-canvas/95 backdrop-blur-sm text-ink px-2.5 py-1 rounded-full uppercase tracking-wider border border-ink/5 shadow-sm z-10 flex items-center gap-1">
-                      <Icon className="w-3 h-3" />
-                      <span>{item.industryType || "Salon"}</span>
+                      <Scissors className="w-3 h-3" />
+                      <span>Barbershop</span>
                     </span>
                     <span className="badge-positive text-[9px] uppercase tracking-wider bg-canvas/95 backdrop-blur-sm text-positive-deep border border-ink/5 shadow-sm z-10 flex items-center gap-1">
                       <Star className="w-2.5 h-2.5 fill-positive-deep text-positive-deep" />

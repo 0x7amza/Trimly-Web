@@ -208,10 +208,10 @@ export const api = {
 
   // 5. SHOPS
   shops: {
-    create: (name: string, industryType?: string, city?: string) =>
+    create: (name: string, country: string, state: string) =>
       request<{ success: boolean; data: Shop }>("/shops", {
         method: "POST",
-        body: JSON.stringify({ name, industryType, city }),
+        body: JSON.stringify({ name, country, state }),
       }),
 
     getMe: () =>
@@ -261,14 +261,15 @@ export const api = {
   },
 
   // 8. SEARCH (reads from MongoDB via route handler)
-  search: (params: { city?: string; industryType?: string; searchQuery?: string; page?: number; limit?: number }) => {
+  search: (params: { city?: string; country?: string; state?: string; searchQuery?: string; page?: number; limit?: number }) => {
     const query = new URLSearchParams();
     if (params.city) query.set("city", params.city);
-    if (params.industryType) query.set("industryType", params.industryType);
+    if (params.country) query.set("country", params.country);
+    if (params.state) query.set("state", params.state);
     if (params.searchQuery) query.set("searchQuery", params.searchQuery);
     if (params.page) query.set("page", params.page.toString());
     if (params.limit) query.set("limit", params.limit.toString());
-    return request<{ success: boolean; data: { results: Array<{ type: string; id: string; name: string; slug: string; images?: string[]; profileImage?: string; industryType?: string; city?: string }>; pagination: { total: number; page: number; limit: number; totalPages: number } } }>(
+    return request<{ success: boolean; data: { results: Array<{ type: string; id: string; name: string; slug: string; images?: string[]; profileImage?: string; country?: string; state?: string; city?: string }>; pagination: { total: number; page: number; limit: number; totalPages: number } } }>(
       `/search?${query.toString()}`
     );
   },

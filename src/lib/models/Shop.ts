@@ -46,7 +46,8 @@ export interface IShop extends Document {
   images?: string[];
   galleryPictures?: string[];
   mapUrl?: string;
-  industryType?: string;
+  country?: string;
+  state?: string;
   city?: string;
   address?: string;
   businessHours?: Array<{ day: number; open: string; close: string; isClosed: boolean }>;
@@ -64,7 +65,8 @@ const ShopSchema = new Schema<IShop>(
     images: [String],
     galleryPictures: [String],
     mapUrl: String,
-    industryType: { type: String, enum: ["Barber", "Hairdresser", "Manicure", "Beauty Salon"] },
+    country: String,
+    state: String,
     city: String,
     address: String,
     businessHours: [BusinessHoursSchema],

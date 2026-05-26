@@ -107,7 +107,7 @@ export default function MarketingPage() {
             id: r.id,
             name: r.name,
             type: "shop" as const,
-            category: r.industryType || "Salon",
+            category: "Barbershop",
             slug: r.slug,
           }));
           setSuggestions(items);

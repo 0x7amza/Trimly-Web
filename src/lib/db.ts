@@ -27,16 +27,5 @@ export async function connectDB(): Promise<typeof mongoose> {
 
   cached.conn = await cached.promise;
 
-  // Run a quick startup migration to set industryType to "Barber" for any shop missing it
-  try {
-    const Shop = mongoose.models.Shop || mongoose.model("Shop", new mongoose.Schema({}, { strict: false }));
-    await Shop.updateMany(
-      { $or: [{ industryType: { $exists: false } }, { industryType: "" }, { industryType: null }] },
-      { $set: { industryType: "Barber" } }
-    );
-  } catch (err) {
-    console.error("Failed to run Shop industryType migration:", err);
-  }
-
   return cached.conn;
 }

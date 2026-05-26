@@ -7,7 +7,7 @@ import { B2BProviders, useB2BAuth } from "@/components/providers";
 import { useUser, UserButton, SignIn } from "@clerk/nextjs";
 import { api } from "@/lib/api";
 import { CustomCombobox } from "@/components/ui/custom-combobox";
-import { UK_CITY_OPTIONS } from "@/lib/uk-cities";
+import { COUNTRY_OPTIONS, COUNTRIES } from "@/lib/locations";
 import { 
   Calendar, 
   Scissors, 
@@ -22,18 +22,18 @@ import {
 function CreateShopOnboarding() {
   const { refreshShopData } = useB2BAuth();
   const [shopName, setShopName] = useState("");
-  const [industryType, setIndustryType] = useState<"Barber" | "Hairdresser" | "Manicure" | "Beauty Salon">("Barber");
-  const [city, setCity] = useState("");
+  const [country, setCountry] = useState("");
+  const [state, setState] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!shopName.trim()) return;
+    if (!shopName.trim() || !country || !state) return;
     setLoading(true);
     setError(null);
     try {
-      await api.shops.create(shopName.trim(), industryType, city.trim() || undefined);
+      await api.shops.create(shopName.trim(), country, state);
       await refreshShopData();
     } catch (err: any) {
       setError(err.message || "An unexpected error occurred");
@@ -42,12 +42,8 @@ function CreateShopOnboarding() {
     }
   };
 
-  const categories = [
-    { value: "Barber", label: "✂️ Barbershop" },
-    { value: "Hairdresser", label: "💇 Hairdresser" },
-    { value: "Manicure", label: "💅 Manicure & Nails" },
-    { value: "Beauty Salon", label: "✨ Beauty Salon" },
-  ];
+  const availableStates = COUNTRIES.find((c) => c.name === country)?.states || [];
+  const stateOptions = availableStates.map((s) => ({ value: s, label: s }));
 
   return (
     <div className="flex-grow flex items-center justify-center p-8 min-h-[calc(100vh-12rem)]">
@@ -55,7 +51,7 @@ function CreateShopOnboarding() {
         <div className="w-16 h-16 bg-primary-pale text-ink rounded-full flex items-center justify-center mb-6 border border-primary/20">
           <Scissors className="w-8 h-8 text-primary" />
         </div>
-        <h3 className="text-2xl font-black text-ink mb-2">Setup Your Shop</h3>
+        <h3 className="text-2xl font-black text-ink mb-2">Setup Your Barbershop</h3>
         <p className="text-sm text-body-text mb-6">
           Welcome to Trimly! Let's create your profile so clients can find and book you.
         </p>
@@ -70,7 +66,7 @@ function CreateShopOnboarding() {
           {/* Shop Name */}
           <div className="space-y-1.5">
             <label className="block text-[10px] font-bold uppercase tracking-wider text-body-text">
-              Barbershop / Salon Name *
+              Barbershop Name *
             </label>
             <input
               type="text"
@@ -83,48 +79,43 @@ function CreateShopOnboarding() {
             />
           </div>
 
-          {/* Category */}
+          {/* Country */}
           <div className="space-y-1.5">
             <label className="block text-[10px] font-bold uppercase tracking-wider text-body-text">
-              Category *
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              {categories.map((cat) => (
-                <button
-                  key={cat.value}
-                  type="button"
-                  disabled={loading}
-                  onClick={() => setIndustryType(cat.value as any)}
-                  className={`py-3 px-3 rounded-xl text-xs font-bold border transition-all text-left ${
-                    industryType === cat.value
-                      ? "bg-primary border-ink text-ink shadow-sm"
-                      : "bg-canvas-soft border-ink/10 text-body-text hover:border-ink/30"
-                  }`}
-                >
-                  {cat.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* City */}
-          <div className="space-y-1.5">
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-body-text">
-              City / Location (optional)
+              Country *
             </label>
             <CustomCombobox
-              value={city}
-              onChange={(val) => setCity(val)}
-              options={UK_CITY_OPTIONS}
-              placeholder="Select a UK City..."
-              searchPlaceholder="Search UK cities..."
+              value={country}
+              onChange={(val) => {
+                setCountry(val);
+                setState("");
+              }}
+              options={COUNTRY_OPTIONS}
+              placeholder="Select Country..."
+              searchPlaceholder="Search countries..."
+              disabled={loading}
+            />
+          </div>
+
+          {/* State / Governorate */}
+          <div className="space-y-1.5">
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-body-text">
+              State / Governorate *
+            </label>
+            <CustomCombobox
+              value={state}
+              onChange={(val) => setState(val)}
+              options={stateOptions}
+              placeholder={country ? "Select State/Governorate..." : "Select Country first..."}
+              searchPlaceholder="Search..."
+              disabled={loading || !country}
             />
           </div>
 
           <button
             type="submit"
             className="button-primary w-full py-3.5 font-bold text-sm tracking-wide shadow-md transition-transform hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 disabled:pointer-events-none"
-            disabled={loading || !shopName.trim()}
+            disabled={loading || !shopName.trim() || !country || !state}
           >
             {loading ? "Creating Shop..." : "Create Shop & Start Trial"}
           </button>

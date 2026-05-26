@@ -12,9 +12,12 @@ export async function POST(request: NextRequest) {
   if (userIdOrError instanceof NextResponse) return userIdOrError;
 
   try {
-    const { name, industryType, city } = await request.json();
+    const { name, country, state } = await request.json();
     if (!name) {
       return NextResponse.json({ success: false, error: "Shop name required" }, { status: 400 });
+    }
+    if (!country || !state) {
+      return NextResponse.json({ success: false, error: "Country and State/Governorate are required" }, { status: 400 });
     }
 
     await connectDB();
@@ -40,8 +43,9 @@ export async function POST(request: NextRequest) {
       ownerId: userIdOrError,
       name,
       slug: finalSlug,
-      industryType: industryType || "Barber",
-      city: city || undefined,
+      country,
+      state,
+      city: state,
       subscription: { plan: "NONE", status: "TRIALING", trialEndsAt },
       maxBarbersIncluded: 5,
     });

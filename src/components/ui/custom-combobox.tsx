@@ -17,6 +17,7 @@ interface CustomComboboxProps {
   searchPlaceholder?: string;
   className?: string;
   borderless?: boolean;
+  disabled?: boolean;
 }
 
 export function CustomCombobox({
@@ -27,6 +28,7 @@ export function CustomCombobox({
   searchPlaceholder = "Search...",
   className = "",
   borderless = false,
+  disabled = false,
 }: CustomComboboxProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -67,10 +69,11 @@ export function CustomCombobox({
     <div ref={containerRef} className={`relative w-full ${className}`}>
       <button
         type="button"
+        disabled={disabled}
         onClick={() => setIsOpen(!isOpen)}
         className={borderless
-          ? "w-full flex items-center justify-between bg-transparent border-0 outline-none text-ink py-1 text-sm font-semibold placeholder:text-mute-text focus:ring-0 text-left cursor-pointer"
-          : "w-full flex items-center justify-between text-input bg-canvas border border-ink/10 rounded-xl px-4 py-3 font-bold text-sm text-ink cursor-pointer hover:border-ink/30 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all text-left"
+          ? `w-full flex items-center justify-between bg-transparent border-0 outline-none text-ink py-1 text-sm font-semibold placeholder:text-mute-text focus:ring-0 text-left ${disabled ? "opacity-50 pointer-events-none cursor-not-allowed" : "cursor-pointer"}`
+          : `w-full flex items-center justify-between text-input bg-canvas border border-ink/10 rounded-xl px-4 py-3 font-bold text-sm text-ink hover:border-ink/30 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all text-left ${disabled ? "opacity-40 pointer-events-none cursor-not-allowed" : "cursor-pointer"}`
         }
       >
         <span className="truncate">

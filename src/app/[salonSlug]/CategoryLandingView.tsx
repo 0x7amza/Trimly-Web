@@ -71,21 +71,12 @@ export default function CategoryLandingView({ categorySlug }: { categorySlug: st
 
   useEffect(() => {
     setIsLoading(true);
-    // Map category slug to industryType used in DB
-    const industryTypeMap: Record<string, string> = {
-      hairdresser: "Hairdresser",
-      barber: "Barber",
-      manicure: "Manicure",
-      "beauty-salon": "Beauty Salon",
-    };
-    const industryType = industryTypeMap[categorySlug];
-    const qs = industryType ? `?industryType=${encodeURIComponent(industryType)}` : "";
-    fetch(`/api/v1/search${qs}`)
+    fetch(`/api/v1/search`)
       .then(r => r.json())
       .then(res => {
         if (res.success) {
           // Build shop-like objects from search results
-          const mappedShops: Shop[] = res.data.results.map((item: { id: string; name: string; slug: string; profileImage?: string; images?: string[]; city?: string; industryType?: string; address?: string }) => ({
+          const mappedShops: Shop[] = res.data.results.map((item: { id: string; name: string; slug: string; profileImage?: string; images?: string[]; city?: string; address?: string }) => ({
             id: item.id,
             ownerId: "",
             name: item.name,
@@ -94,7 +85,6 @@ export default function CategoryLandingView({ categorySlug }: { categorySlug: st
             profilePicture: item.profileImage,
             images: item.images,
             city: item.city,
-            industryType: item.industryType,
             address: item.address,
           }));
           setShops(mappedShops);
@@ -107,13 +97,7 @@ export default function CategoryLandingView({ categorySlug }: { categorySlug: st
 
 
   const getCategorySlugForShop = (industryType?: string) => {
-    if (!industryType) return "";
-    const type = industryType.toLowerCase();
-    if (type === "barber") return "barber";
-    if (type === "hairdresser") return "hairdresser";
-    if (type === "manicure") return "manicure";
-    if (type === "beauty salon" || type === "beauty-salon") return "beauty-salon";
-    return "";
+    return "barber";
   };
 
   const getShopBarbers = (shopId: string) => {
@@ -139,7 +123,7 @@ export default function CategoryLandingView({ categorySlug }: { categorySlug: st
   ];
 
   const filteredShops = shops.filter(shop => {
-    const isOfCategory = getCategorySlugForShop(shop.industryType) === categorySlug;
+    const isOfCategory = getCategorySlugForShop() === categorySlug;
     if (!isOfCategory) return false;
     
     const activeLoc = selectedLocation || "All";
@@ -263,7 +247,7 @@ export default function CategoryLandingView({ categorySlug }: { categorySlug: st
               const shopBarbersList = getShopBarbers(shop.id);
               const shopServicesList = getShopServices(shop.id);
               const address = shop.address || (shop.city ? `${shop.city}, UK` : "Location, UK");
-              const bio = shop.industryType ? `${shop.industryType} services in ${shop.city || "UK"}.` : "Premium beauty service specialists.";
+              const bio = `Barber services in ${shop.city || "local area"}.`;
 
               return (
                 <div key={shop.id} className="card-content bg-canvas border border-ink/5 hover:border-ink/20 transition-all flex flex-col justify-between overflow-hidden p-0 group">

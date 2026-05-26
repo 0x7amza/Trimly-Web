@@ -47,7 +47,8 @@ export interface Shop {
   galleryPictures?: string[]; // fallback
   profileImage?: string;
   profilePicture?: string; // fallback
-  industryType?: "Barber" | "Hairdresser" | "Manicure" | "Beauty Salon";
+  country?: string;
+  state?: string;
   city?: string;
   address?: string;
   mapUrl?: string;

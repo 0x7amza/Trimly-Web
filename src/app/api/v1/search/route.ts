@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import { ShopModel } from "@/lib/models/Shop";
 
-// GET /api/v1/search?city=&industryType=&searchQuery=&page=1&limit=10
+// GET /api/v1/search?city=&country=&state=&searchQuery=&page=1&limit=10
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const city = searchParams.get("city");
-  const industryType = searchParams.get("industryType");
+  const country = searchParams.get("country");
+  const state = searchParams.get("state");
   const searchQuery = searchParams.get("searchQuery");
   const page = Math.max(1, Number(searchParams.get("page") || "1"));
   const limit = Math.min(50, Number(searchParams.get("limit") || "12"));
@@ -21,8 +22,11 @@ export async function GET(request: NextRequest) {
     if (city) {
       filter.city = { $regex: new RegExp(city, "i") };
     }
-    if (industryType) {
-      filter.industryType = { $regex: new RegExp(industryType, "i") };
+    if (country) {
+      filter.country = { $regex: new RegExp(country, "i") };
+    }
+    if (state) {
+      filter.state = { $regex: new RegExp(state, "i") };
     }
     if (searchQuery) {
       filter.name = { $regex: new RegExp(searchQuery, "i") };
@@ -34,10 +38,10 @@ export async function GET(request: NextRequest) {
       .limit(limit)
       .lean();
 
-    // Fetch distinct active cities for this category/industryType
+    // Fetch distinct active cities/states
     const citiesFilter: Record<string, any> = {};
-    if (industryType) {
-      citiesFilter.industryType = { $regex: new RegExp(industryType, "i") };
+    if (country) {
+      citiesFilter.country = { $regex: new RegExp(country, "i") };
     }
     const rawCities = await ShopModel.distinct("city", citiesFilter);
     const activeCities = rawCities.filter(Boolean);
@@ -49,7 +53,8 @@ export async function GET(request: NextRequest) {
       slug: s.slug,
       profileImage: s.profileImage || (s as any).profilePicture,
       images: s.images?.length ? s.images : (s as any).galleryPictures,
-      industryType: s.industryType,
+      country: s.country,
+      state: s.state,
       city: s.city,
       address: s.address,
     }));
