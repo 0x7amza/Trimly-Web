@@ -35,6 +35,9 @@ export default function MarketingLayout({
           </Link>
 
           <nav className="hidden md:flex items-center gap-8">
+            <Link href="/barber" className="text-sm font-bold text-body-text hover:text-ink transition-colors">
+              Find a Barber
+            </Link>
             <Link href="/#features" className="text-sm font-bold text-body-text hover:text-ink transition-colors">
               Features
             </Link>
@@ -60,23 +63,6 @@ export default function MarketingLayout({
                 </Link>
               </>
             )}
-          </div>
-        </div>
-        {/* Sub-navbar with marketplace categories */}
-        <div className="border-t border-ink/5 bg-canvas/50">
-          <div className="max-w-[1200px] mx-auto px-6 h-11 flex items-center justify-center gap-6 overflow-x-auto scrollbar-none text-xs font-bold uppercase tracking-wider">
-            <Link href="/hairdresser" className="text-body-text hover:text-ink transition-colors whitespace-nowrap px-3 py-1 rounded-full hover:bg-ink/5">
-              Hairdresser
-            </Link>
-            <Link href="/barber" className="text-body-text hover:text-ink transition-colors whitespace-nowrap px-3 py-1 rounded-full hover:bg-ink/5">
-              Barber
-            </Link>
-            <Link href="/manicure" className="text-body-text hover:text-ink transition-colors whitespace-nowrap px-3 py-1 rounded-full hover:bg-ink/5">
-              Manicure
-            </Link>
-            <Link href="/beauty-salon" className="text-body-text hover:text-ink transition-colors whitespace-nowrap px-3 py-1 rounded-full hover:bg-ink/5">
-              Beauty Salon
-            </Link>
           </div>
         </div>
       </header>

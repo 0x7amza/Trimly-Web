@@ -172,30 +172,9 @@ export default function CategoryLandingView({ categorySlug }: { categorySlug: st
           </Link>
 
           <nav className="hidden md:flex items-center gap-6 text-xs font-bold uppercase tracking-wider">
-            <Link 
-              href="/hairdresser" 
-              className={`px-3 py-1.5 rounded-full transition-colors whitespace-nowrap ${categorySlug === "hairdresser" ? "bg-ink text-white" : "text-body-text hover:text-ink hover:bg-ink/5"}`}
-            >
-              Hairdresser
-            </Link>
-            <Link 
-              href="/barber" 
-              className={`px-3 py-1.5 rounded-full transition-colors whitespace-nowrap ${categorySlug === "barber" ? "bg-ink text-white" : "text-body-text hover:text-ink hover:bg-ink/5"}`}
-            >
-              Barber
-            </Link>
-            <Link 
-              href="/manicure" 
-              className={`px-3 py-1.5 rounded-full transition-colors whitespace-nowrap ${categorySlug === "manicure" ? "bg-ink text-white" : "text-body-text hover:text-ink hover:bg-ink/5"}`}
-            >
-              Manicure
-            </Link>
-            <Link 
-              href="/beauty-salon" 
-              className={`px-3 py-1.5 rounded-full transition-colors whitespace-nowrap ${categorySlug === "beauty-salon" ? "bg-ink text-white" : "text-body-text hover:text-ink hover:bg-ink/5"}`}
-            >
-              Beauty Salon
-            </Link>
+            <span className="px-3 py-1.5 rounded-full bg-ink text-white whitespace-nowrap">
+              Barbershop Directory
+            </span>
           </nav>
 
           <div className="flex items-center gap-3">
@@ -364,12 +343,10 @@ export default function CategoryLandingView({ categorySlug }: { categorySlug: st
             </p>
           </div>
           <div>
-            <h4 className="font-bold text-xs uppercase tracking-wider text-white mb-3">Categories</h4>
-            <div className="grid grid-cols-2 gap-2 text-xs text-canvas-soft/60">
-              <Link href="/hairdresser" className="hover:text-primary">Hairdresser</Link>
-              <Link href="/barber" className="hover:text-primary">Barbershops</Link>
-              <Link href="/manicure" className="hover:text-primary">Nail Salon</Link>
-              <Link href="/beauty-salon" className="hover:text-primary">Beauty Care</Link>
+            <h4 className="font-bold text-xs uppercase tracking-wider text-white mb-3">Directory</h4>
+            <div className="grid grid-cols-1 gap-2 text-xs text-canvas-soft/60">
+              <Link href="/barber" className="hover:text-primary">Find a Barbershop</Link>
+              <Link href="/for-professionals" className="hover:text-primary">For Barbershops</Link>
             </div>
           </div>
           <div>

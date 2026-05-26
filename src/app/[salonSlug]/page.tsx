@@ -11,7 +11,7 @@ export default async function CategoryOrSalonPage({
 }) {
   const { salonSlug } = await params;
   const slug = salonSlug.toLowerCase();
-  const CATEGORIES = ["hairdresser", "barber", "manicure", "beauty-salon"];
+  const CATEGORIES = ["barber"];
 
   if (CATEGORIES.includes(slug)) {
     return <CategoryLandingView categorySlug={slug} />;

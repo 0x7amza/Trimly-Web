@@ -200,21 +200,8 @@ export default function MarketingPage() {
     e.preventDefault();
     setSearchError("");
 
-    const q = searchQuery.toLowerCase();
-    let category = "barber"; // default fallback
-
-    if (q.includes("hair") || q.includes("style") || q.includes("cut") || q.includes("color") || q.includes("dresser")) {
-      category = "hairdresser";
-    } else if (q.includes("barber") || q.includes("shave") || q.includes("fade") || q.includes("beard")) {
-      category = "barber";
-    } else if (q.includes("nail") || q.includes("manicure") || q.includes("pedicure") || q.includes("gel") || q.includes("nails")) {
-      category = "manicure";
-    } else if (q.includes("beauty") || q.includes("facial") || q.includes("skin") || q.includes("salon")) {
-      category = "beauty-salon";
-    }
-
     const cityParam = locationQuery.trim() ? `?city=${encodeURIComponent(locationQuery.trim())}` : "";
-    router.push(`/${category}${cityParam}`);
+    router.push(`/barber${cityParam}`);
   };
 
   const handleSelectSuggestion = (item: SuggestionItem) => {
@@ -223,121 +210,12 @@ export default function MarketingPage() {
       router.push(`/${item.slug}`);
     } else {
       setSearchQuery(item.name);
-      
-      let catSlug = "barber";
-      const cat = (item.category || "").toLowerCase();
-      if (cat.includes("hair") || cat.includes("style") || cat.includes("cut") || cat.includes("dresser")) catSlug = "hairdresser";
-      else if (cat.includes("barber") || cat.includes("fade")) catSlug = "barber";
-      else if (cat.includes("nail") || cat.includes("manicure") || cat.includes("pedicure")) catSlug = "manicure";
-      else if (cat.includes("beauty") || cat.includes("salon")) catSlug = "beauty-salon";
-
       const cityParam = locationQuery.trim() ? `?city=${encodeURIComponent(locationQuery.trim())}` : "";
-      router.push(`/${catSlug}${cityParam}`);
+      router.push(`/barber${cityParam}`);
     }
   };
 
-  // Carousel slider configuration
-  const categories = [
-    {
-      coverImage: "https://images.unsplash.com/photo-1562322140-8baeececf3df?auto=format&fit=crop&w=600&q=80",
-      icon: Scissors,
-      title: "Hairdresser",
-      description: "Transform your hair with professional cuts, colors, and styling.",
-      gradient: "from-pink-500/20 via-pink-500/10 to-transparent border-pink-500/10",
-      textColor: "text-pink-500",
-      badgeColor: "bg-pink-500/10 text-pink-700 border-pink-500/20",
-      slug: "hairdresser"
-    },
-    {
-      coverImage: "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&w=600&q=80",
-      icon: Sparkles,
-      title: "Barber",
-      description: "Get a sharp skin fade, classic cut, or beard trim from top barbers.",
-      gradient: "from-amber-500/20 via-amber-500/10 to-transparent border-amber-500/10",
-      textColor: "text-amber-500",
-      badgeColor: "bg-amber-500/10 text-amber-700 border-amber-500/20",
-      slug: "barber"
-    },
-    {
-      coverImage: "https://images.unsplash.com/photo-1604654894610-df63bc536371?auto=format&fit=crop&w=600&q=80",
-      icon: Star,
-      title: "Manicure",
-      description: "Pamper your nails with professional extensions, gels, and nail art.",
-      gradient: "from-purple-500/20 via-purple-500/10 to-transparent border-purple-500/10",
-      textColor: "text-purple-500",
-      badgeColor: "bg-purple-500/10 text-purple-700 border-purple-500/20",
-      slug: "manicure"
-    },
-    {
-      coverImage: "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?auto=format&fit=crop&w=600&q=80",
-      icon: Sparkles,
-      title: "Beauty Salon",
-      description: "Rejuvenate with custom facials, lashes, and specialized skin therapies.",
-      gradient: "from-teal-500/20 via-teal-500/10 to-transparent border-teal-500/10",
-      textColor: "text-teal-500",
-      badgeColor: "bg-teal-500/10 text-teal-700 border-teal-500/20",
-      slug: "beauty-salon"
-    },
-  ];
 
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [itemsPerView, setItemsPerView] = useState(3);
-  // Touch swipe support
-  const touchStartX = React.useRef<number | null>(null);
-  const handleTouchStart = (e: React.TouchEvent) => { touchStartX.current = e.touches[0].clientX; };
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    if (touchStartX.current === null) return;
-    const delta = touchStartX.current - e.changedTouches[0].clientX;
-    if (Math.abs(delta) > 40) { delta > 0 ? nextSlide() : prevSlide(); }
-    touchStartX.current = null;
-  };
-
-  useEffect(() => {
-    const handleResize = () => {
-      if (window.innerWidth < 640) {
-        setItemsPerView(1);
-      } else if (window.innerWidth < 1024) {
-        setItemsPerView(2);
-      } else {
-        setItemsPerView(3);
-      }
-    };
-    handleResize();
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, []);
-
-  const nextSlide = () => {
-    setCurrentIndex((prev) => {
-      const maxIndex = categories.length - itemsPerView;
-      if (maxIndex <= 0) return 0;
-      if (prev >= maxIndex) {
-        return 0; // wrap to start
-      }
-      return prev + 1;
-    });
-  };
-
-  const prevSlide = () => {
-    setCurrentIndex((prev) => {
-      const maxIndex = categories.length - itemsPerView;
-      if (maxIndex <= 0) return 0;
-      if (prev <= 0) {
-        return maxIndex; // wrap to end
-      }
-      return prev - 1;
-    });
-  };
-
-  // Adjust sliding bounds on view size change
-  useEffect(() => {
-    const maxIndex = categories.length - itemsPerView;
-    if (currentIndex > maxIndex) {
-      setCurrentIndex(Math.max(0, maxIndex));
-    }
-  }, [itemsPerView, currentIndex]);
-
-  // Autoplay removed — manual arrow + touch navigation only
 
 
   return (
@@ -355,13 +233,13 @@ export default function MarketingPage() {
             </div>
             
             <h1 className="text-4xl sm:text-5xl md:text-6xl font-black text-ink leading-[1.1] tracking-tight mb-6">
-              Book your local beauty <br />
-              & hair appointments. <br />
+              Book your local <br />
+              barber appointments. <br />
               <span className="text-primary-deep bg-primary px-3 py-1.5 rounded-2xl inline-block mt-2">Immediate. 24/7.</span>
             </h1>
             
             <p className="text-lg md:text-xl text-body-text font-normal max-w-xl mb-8 leading-relaxed">
-              Find and book local hairdressers, barbershops, manicure tables, beauty care facilities, and wellness centers in seconds. Check live slots and get absolute scheduling certainty.
+              Find and book local barbershops in seconds. Get a sharp skin fade, classic trim, or hot towel shave. Check live open slots and get absolute scheduling certainty.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
@@ -579,121 +457,9 @@ export default function MarketingPage() {
             ⚠️ {searchError}
           </div>
         )}
-
-        {/* Quick Category Tab Navigation below discovery bar */}
-        <div className="flex flex-wrap justify-center gap-3 mt-8">
-          {categories.map((cat) => {
-            const Icon = cat.icon;
-            return (
-              <Link
-                key={cat.slug}
-                href={`/${cat.slug}`}
-                className="flex items-center gap-2 bg-canvas hover:bg-canvas-soft border border-ink/5 hover:border-ink/20 px-5 py-2.5 rounded-full transition-all text-xs font-bold text-ink shadow-sm"
-              >
-                <Icon className="w-3.5 h-3.5 text-mute-text" />
-                <span>{cat.title}</span>
-              </Link>
-            );
-          })}
-        </div>
       </div>
 
-      {/* 3. Interactive "Discover Our Professionals" Carousel */}
-      <section className="py-20 px-6 bg-canvas border-t border-b border-ink/5">
-        <div className="max-w-[1200px] mx-auto">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-10 gap-4">
-            <div>
-              <span className="text-xs font-black uppercase tracking-widest text-mute-text bg-canvas-soft border border-ink/5 px-3 py-1 rounded-full">
-                Featured Categories
-              </span>
-              <h2 className="text-3xl md:text-5xl font-black text-ink mt-3 tracking-tight">
-                Discover Our Professionals
-              </h2>
-            </div>
-            
-            {/* Carousel navigation controls */}
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={prevSlide}
-                className="p-3 bg-canvas border border-ink/10 hover:bg-canvas-soft text-ink rounded-full transition-all cursor-pointer shadow-sm"
-                aria-label="Previous slide"
-              >
-                <ChevronLeft className="w-5 h-5" />
-              </button>
-              <button
-                type="button"
-                onClick={nextSlide}
-                className="p-3 bg-canvas border border-ink/10 hover:bg-canvas-soft text-ink rounded-full transition-all cursor-pointer shadow-sm"
-                aria-label="Next slide"
-              >
-                <ChevronRight className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
 
-          {/* Carousel sliding view track */}
-          <div
-            className="relative overflow-hidden w-full py-4"
-            onTouchStart={handleTouchStart}
-            onTouchEnd={handleTouchEnd}
-          >
-            <motion.div 
-              className="flex -mx-3"
-              animate={{ x: `-${currentIndex * (100 / itemsPerView)}%` }}
-              transition={{ type: "spring", stiffness: 120, damping: 20 }}
-              style={{ willChange: "transform" }}
-            >
-              {categories.map((cat) => {
-                const Icon = cat.icon;
-                return (
-                  <div 
-                    key={cat.slug} 
-                    className="w-full flex-shrink-0 px-3" 
-                    style={{ width: `${100 / itemsPerView}%` }}
-                  >
-                    <div className="card-content bg-canvas border border-ink/5 hover:border-ink/20 transition-all rounded-wise overflow-hidden p-0 flex flex-col justify-between h-[360px] relative group shadow-md bg-gradient-to-b from-canvas to-canvas-soft/30">
-                      
-                      {/* Premium Cover Photo */}
-                      <div className="relative h-44 w-full overflow-hidden">
-                        <img 
-                          src={cat.coverImage} 
-                          alt={cat.title} 
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
-                        <span className={`absolute top-4 right-4 text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-full border bg-canvas/90 backdrop-blur-sm shadow-sm ${cat.badgeColor}`}>
-                          Trimly Pro
-                        </span>
-                      </div>
-
-                      {/* Content Panel */}
-                      <div className="p-5 flex-grow flex flex-col justify-between">
-                        <div>
-                          <div className="flex items-center gap-2 mb-2">
-                            <div className="p-1.5 bg-canvas-soft/80 rounded-lg border border-ink/5">
-                              <Icon className={`w-4 h-4 ${cat.textColor}`} />
-                            </div>
-                            <h3 className="text-lg font-black text-ink">{cat.title}</h3>
-                          </div>
-                          <p className="text-xs text-body-text leading-relaxed line-clamp-2">{cat.description}</p>
-                        </div>
-                        
-                        <Link 
-                          href={`/${cat.slug}`} 
-                          className="inline-flex items-center gap-1 text-xs font-bold text-ink hover:text-primary-deep group-hover:translate-x-1 transition-all mt-4"
-                        >
-                          Explore Specialists <ArrowRight className="w-3.5 h-3.5" />
-                        </Link>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </motion.div>
-          </div>
-        </div>
-      </section>
 
       {/* 4. Structural SEO Directory Searches */}
       <section className="py-16 px-6 bg-canvas-soft border-b border-ink/5">
@@ -707,38 +473,38 @@ export default function MarketingPage() {
           
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8 text-sm">
             <div className="space-y-3">
-              <h4 className="font-bold text-ink border-b border-ink/5 pb-2">Hairdresser Styling</h4>
+              <h4 className="font-bold text-ink border-b border-ink/5 pb-2">London Barbers</h4>
               <ul className="space-y-2 text-xs">
-                <li><Link href="/hairdresser?city=London" className="text-body-text hover:text-ink hover:underline transition-all">Hairdressers in London</Link></li>
-                <li><Link href="/hairdresser?city=Manchester" className="text-body-text hover:text-ink hover:underline transition-all">Hairdressers in Manchester</Link></li>
-                <li><Link href="/hairdresser?city=Bristol" className="text-body-text hover:text-ink hover:underline transition-all">Hairdressers in Bristol</Link></li>
+                <li><Link href="/barber?city=London" className="text-body-text hover:text-ink hover:underline transition-all">Top Barbers in London</Link></li>
+                <li><Link href="/barber?city=London" className="text-body-text hover:text-ink hover:underline transition-all">Skin Fades in London</Link></li>
+                <li><Link href="/barber?city=London" className="text-body-text hover:text-ink hover:underline transition-all">Beard Grooming London</Link></li>
               </ul>
             </div>
 
             <div className="space-y-3">
-              <h4 className="font-bold text-ink border-b border-ink/5 pb-2">Barber Fades & Shaves</h4>
+              <h4 className="font-bold text-ink border-b border-ink/5 pb-2">Manchester Barbers</h4>
               <ul className="space-y-2 text-xs">
-                <li><Link href="/barber?city=London" className="text-body-text hover:text-ink hover:underline transition-all">Barbers in London</Link></li>
-                <li><Link href="/barber?city=Manchester" className="text-body-text hover:text-ink hover:underline transition-all">Barbers in Manchester</Link></li>
-                <li><Link href="/barber?city=Bristol" className="text-body-text hover:text-ink hover:underline transition-all">Barbers in Bristol</Link></li>
+                <li><Link href="/barber?city=Manchester" className="text-body-text hover:text-ink hover:underline transition-all">Top Barbers in Manchester</Link></li>
+                <li><Link href="/barber?city=Manchester" className="text-body-text hover:text-ink hover:underline transition-all">Skin Fades in Manchester</Link></li>
+                <li><Link href="/barber?city=Manchester" className="text-body-text hover:text-ink hover:underline transition-all">Beard Grooming Manchester</Link></li>
               </ul>
             </div>
 
             <div className="space-y-3">
-              <h4 className="font-bold text-ink border-b border-ink/5 pb-2">Nail & Manicure Care</h4>
+              <h4 className="font-bold text-ink border-b border-ink/5 pb-2">Bristol Barbers</h4>
               <ul className="space-y-2 text-xs">
-                <li><Link href="/manicure?city=London" className="text-body-text hover:text-ink hover:underline transition-all">Nail Salons in London</Link></li>
-                <li><Link href="/manicure?city=Manchester" className="text-body-text hover:text-ink hover:underline transition-all">Nail Salons in Manchester</Link></li>
-                <li><Link href="/manicure?city=Bristol" className="text-body-text hover:text-ink hover:underline transition-all">Nail Salons in Bristol</Link></li>
+                <li><Link href="/barber?city=Bristol" className="text-body-text hover:text-ink hover:underline transition-all">Top Barbers in Bristol</Link></li>
+                <li><Link href="/barber?city=Bristol" className="text-body-text hover:text-ink hover:underline transition-all">Skin Fades in Bristol</Link></li>
+                <li><Link href="/barber?city=Bristol" className="text-body-text hover:text-ink hover:underline transition-all">Beard Grooming Bristol</Link></li>
               </ul>
             </div>
 
             <div className="space-y-3">
-              <h4 className="font-bold text-ink border-b border-ink/5 pb-2">Beauty & Skincare</h4>
+              <h4 className="font-bold text-ink border-b border-ink/5 pb-2">Birmingham Barbers</h4>
               <ul className="space-y-2 text-xs">
-                <li><Link href="/beauty-salon?city=London" className="text-body-text hover:text-ink hover:underline transition-all">Beauty Salons in London</Link></li>
-                <li><Link href="/beauty-salon?city=Manchester" className="text-body-text hover:text-ink hover:underline transition-all">Beauty Salons in Manchester</Link></li>
-                <li><Link href="/beauty-salon?city=Bristol" className="text-body-text hover:text-ink hover:underline transition-all">Beauty Salons in Bristol</Link></li>
+                <li><Link href="/barber?city=Birmingham" className="text-body-text hover:text-ink hover:underline transition-all">Top Barbers in Birmingham</Link></li>
+                <li><Link href="/barber?city=Birmingham" className="text-body-text hover:text-ink hover:underline transition-all">Skin Fades in Birmingham</Link></li>
+                <li><Link href="/barber?city=Birmingham" className="text-body-text hover:text-ink hover:underline transition-all">Beard Grooming Birmingham</Link></li>
               </ul>
             </div>
           </div>

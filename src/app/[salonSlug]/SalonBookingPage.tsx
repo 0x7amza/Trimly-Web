@@ -428,85 +428,223 @@ export default function SalonBookingPage({
   const [isNewCustomer, setIsNewCustomer] = useState(false);
   const [customer, setCustomer] = useState<Customer | null>(null);
 
-  const gallery = shop?.images && shop.images.length > 0
-    ? shop.images
-    : (shop?.galleryPictures && shop.galleryPictures.length > 0
-        ? shop.galleryPictures
-        : [
-            "https://images.unsplash.com/photo-1621605815971-fbc98d665033?auto=format&fit=crop&w=800&q=80",
-            "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&w=800&q=80",
-            "https://images.unsplash.com/photo-1595425970377-c9703cf48b6d?auto=format&fit=crop&w=800&q=80",
-            "https://images.unsplash.com/photo-1605497746444-ac9dbd34f196?auto=format&fit=crop&w=800&q=80"
-          ]);
+  const gallery = (shop?.images && shop.images.filter(Boolean).length > 0)
+    ? shop.images.filter(Boolean)
+    : ((shop?.galleryPictures && shop.galleryPictures.filter(Boolean).length > 0)
+        ? shop.galleryPictures.filter(Boolean)
+        : []);
 
   const renderGallery = () => {
     const validGallery = gallery.filter(Boolean);
+
+    // Case 0: No images uploaded
+    if (validGallery.length === 0) {
+      return (
+        <div className="w-full h-64 md:h-[350px] bg-canvas border border-ink/10 rounded-2xl flex flex-col items-center justify-center p-8 text-center shadow-sm relative overflow-hidden group">
+          <div className="absolute -right-10 -bottom-10 w-40 h-40 bg-primary-pale rounded-full blur-2xl opacity-50 transition-all group-hover:scale-110 duration-500" />
+          <div className="absolute -left-10 -top-10 w-40 h-40 bg-primary-pale rounded-full blur-2xl opacity-50 transition-all group-hover:scale-110 duration-500" />
+          
+          <div className="w-14 h-14 bg-primary-pale text-ink rounded-full flex items-center justify-center border border-ink/10 mb-4 shadow-sm z-10 transition-transform duration-300 group-hover:scale-105">
+            <Scissors className="w-7 h-7 text-ink" />
+          </div>
+          
+          <h3 className="text-lg font-black text-ink tracking-tight z-10">Welcome to {shop?.name || "Our Salon"}</h3>
+          <p className="text-xs text-mute-text mt-2 max-w-sm leading-relaxed z-10">
+            Our work portfolio and salon gallery are currently being updated. Book an appointment today to experience our premium service!
+          </p>
+        </div>
+      );
+    }
+
+    // Case 1: Exactly 1 image
     if (validGallery.length === 1) {
       return (
         <div 
           onClick={() => setActiveLightboxIndex(0)}
-          className="w-full h-64 md:h-96 relative overflow-hidden rounded-2xl border border-ink/5 bg-canvas cursor-pointer group shadow-sm"
+          className="w-full h-64 md:h-[350px] relative overflow-hidden rounded-xl bg-canvas cursor-pointer group shadow-sm"
         >
-          <img src={validGallery[0]} alt="Salon details" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.01]" />
+          <img src={validGallery[0]} alt="Salon details" className="w-full h-full object-cover transition-all duration-500 group-hover:scale-[1.015]" />
+          <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-4">
+            <span className="text-white text-xs font-bold bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10">View Photo</span>
+          </div>
         </div>
       );
     }
+
+    // Case 2: Exactly 2 images
     if (validGallery.length === 2) {
       return (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 h-64 md:h-80 w-full rounded-2xl overflow-hidden shadow-sm border border-ink/5 bg-canvas">
-          <div onClick={() => setActiveLightboxIndex(0)} className="h-full relative overflow-hidden group cursor-pointer">
-            <img src={validGallery[0]} alt="Salon details" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 h-64 md:h-[350px] w-full">
+          <div onClick={() => setActiveLightboxIndex(0)} className="h-full relative overflow-hidden rounded-xl group cursor-pointer">
+            <img src={validGallery[0]} alt="Salon details" className="w-full h-full object-cover transition-all duration-500 group-hover:scale-[1.015]" />
+            <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-4">
+              <span className="text-white text-xs font-bold bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10">View Photo</span>
+            </div>
           </div>
-          <div onClick={() => setActiveLightboxIndex(1)} className="h-full relative overflow-hidden group cursor-pointer">
-            <img src={validGallery[1]} alt="Salon details" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+          <div onClick={() => setActiveLightboxIndex(1)} className="hidden md:block h-full relative overflow-hidden rounded-xl group cursor-pointer">
+            <img src={validGallery[1]} alt="Salon details" className="w-full h-full object-cover transition-all duration-500 group-hover:scale-[1.015]" />
+            <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-4">
+              <span className="text-white text-xs font-bold bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10">View Photo</span>
+            </div>
           </div>
         </div>
       );
     }
+
+    // Case 3: Exactly 3 images
     if (validGallery.length === 3) {
       return (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 h-64 md:h-80 w-full rounded-2xl overflow-hidden shadow-sm border border-ink/5 bg-canvas">
-          <div onClick={() => setActiveLightboxIndex(0)} className="md:col-span-2 h-full relative overflow-hidden group cursor-pointer">
-            <img src={validGallery[0]} alt="Salon details" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
-          </div>
-          <div className="flex flex-col gap-4 h-full">
-            <div onClick={() => setActiveLightboxIndex(1)} className="h-1/2 relative overflow-hidden group cursor-pointer">
-              <img src={validGallery[1]} alt="Salon details" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+        <div className="grid grid-cols-1 md:grid-cols-3 md:grid-rows-2 gap-3 h-64 md:h-[350px] w-full">
+          {/* Large Left Image (0) */}
+          <div 
+            onClick={() => setActiveLightboxIndex(0)} 
+            className="md:col-start-1 md:col-span-2 md:row-start-1 md:row-span-2 h-full relative overflow-hidden rounded-xl group cursor-pointer"
+          >
+            <img src={validGallery[0]} alt="Salon details" className="w-full h-full object-cover transition-all duration-500 group-hover:scale-[1.015]" />
+            <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-4">
+              <span className="text-white text-xs font-bold bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10">View Photo</span>
             </div>
-            <div onClick={() => setActiveLightboxIndex(2)} className="h-1/2 relative overflow-hidden group cursor-pointer">
-              <img src={validGallery[2]} alt="Salon details" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+          </div>
+          
+          {/* Top-Right Image (1) */}
+          <div 
+            onClick={() => setActiveLightboxIndex(1)} 
+            className="hidden md:block md:col-start-3 md:col-span-1 md:row-start-1 md:row-span-1 h-full relative overflow-hidden rounded-xl group cursor-pointer"
+          >
+            <img src={validGallery[1]} alt="Salon details" className="w-full h-full object-cover transition-all duration-500 group-hover:scale-[1.02]" />
+            <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-3">
+              <span className="text-white text-[10px] font-bold bg-black/40 backdrop-blur-md px-2 py-1 rounded-md border border-white/10">View Photo</span>
+            </div>
+          </div>
+          
+          {/* Bottom-Right Image (2) */}
+          <div 
+            onClick={() => setActiveLightboxIndex(2)} 
+            className="hidden md:block md:col-start-3 md:col-span-1 md:row-start-2 md:row-span-1 h-full relative overflow-hidden rounded-xl group cursor-pointer"
+          >
+            <img src={validGallery[2]} alt="Salon details" className="w-full h-full object-cover transition-all duration-500 group-hover:scale-[1.02]" />
+            <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-3">
+              <span className="text-white text-[10px] font-bold bg-black/40 backdrop-blur-md px-2 py-1 rounded-md border border-white/10">View Photo</span>
             </div>
           </div>
         </div>
       );
     }
+
+    // Case 4: Exactly 4 images
+    if (validGallery.length === 4) {
+      return (
+        <div className="grid grid-cols-1 md:grid-cols-4 md:grid-rows-2 gap-3 h-64 md:h-[350px] w-full">
+          {/* Large Left Image (0) */}
+          <div 
+            onClick={() => setActiveLightboxIndex(0)} 
+            className="md:col-start-1 md:col-span-2 md:row-start-1 md:row-span-2 h-full relative overflow-hidden rounded-xl group cursor-pointer"
+          >
+            <img src={validGallery[0]} alt="Salon details" className="w-full h-full object-cover transition-all duration-500 group-hover:scale-[1.015]" />
+            <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-4">
+              <span className="text-white text-xs font-bold bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10">View Photo</span>
+            </div>
+          </div>
+          
+          {/* Middle Top Image (1) */}
+          <div 
+            onClick={() => setActiveLightboxIndex(1)} 
+            className="hidden md:block md:col-start-3 md:col-span-1 md:row-start-1 md:row-span-1 h-full relative overflow-hidden rounded-xl group cursor-pointer"
+          >
+            <img src={validGallery[1]} alt="Salon details" className="w-full h-full object-cover transition-all duration-500 group-hover:scale-[1.02]" />
+            <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-3">
+              <span className="text-white text-[10px] font-bold bg-black/40 backdrop-blur-md px-2 py-1 rounded-md border border-white/10">View Photo</span>
+            </div>
+          </div>
+          
+          {/* Middle Bottom Image (2) */}
+          <div 
+            onClick={() => setActiveLightboxIndex(2)} 
+            className="hidden md:block md:col-start-3 md:col-span-1 md:row-start-2 md:row-span-1 h-full relative overflow-hidden rounded-xl group cursor-pointer"
+          >
+            <img src={validGallery[2]} alt="Salon details" className="w-full h-full object-cover transition-all duration-500 group-hover:scale-[1.02]" />
+            <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-3">
+              <span className="text-white text-[10px] font-bold bg-black/40 backdrop-blur-md px-2 py-1 rounded-md border border-white/10">View Photo</span>
+            </div>
+          </div>
+          
+          {/* Right Image (3) - spans full height */}
+          <div 
+            onClick={() => setActiveLightboxIndex(3)} 
+            className="hidden md:block md:col-start-4 md:col-span-1 md:row-start-1 md:row-span-2 h-full relative overflow-hidden rounded-xl group cursor-pointer"
+          >
+            <img src={validGallery[3]} alt="Salon details" className="w-full h-full object-cover transition-all duration-500 group-hover:scale-[1.015]" />
+            <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-4">
+              <span className="text-white text-xs font-bold bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10">View Photo</span>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // Case 5+: Airbnb-style layout (5 images in a grid: 1 large left, 2 stacked middle, 2 stacked right)
     return (
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 h-64 md:h-80 w-full rounded-2xl overflow-hidden shadow-sm border border-ink/5 bg-canvas">
+      <div className="grid grid-cols-1 md:grid-cols-4 md:grid-rows-2 gap-3 h-64 md:h-[350px] w-full">
+        {/* Large Left Image (0) */}
         <div 
           onClick={() => setActiveLightboxIndex(0)}
-          className="md:col-span-2 h-full relative overflow-hidden group cursor-pointer"
+          className="md:col-start-1 md:col-span-2 md:row-start-1 md:row-span-2 h-full relative overflow-hidden rounded-xl group cursor-pointer"
         >
-          <img src={validGallery[0]} alt="Salon details" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
-        </div>
-        <div className="hidden md:flex flex-col gap-4 h-full">
-          <div 
-            onClick={() => setActiveLightboxIndex(1)}
-            className="h-1/2 relative overflow-hidden group cursor-pointer"
-          >
-            <img src={validGallery[1] || validGallery[0]} alt="Salon gallery" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
-          </div>
-          <div 
-            onClick={() => setActiveLightboxIndex(2)}
-            className="h-1/2 relative overflow-hidden group cursor-pointer"
-          >
-            <img src={validGallery[2] || validGallery[0]} alt="Salon gallery" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+          <img src={validGallery[0]} alt="Salon details" className="w-full h-full object-cover transition-all duration-500 group-hover:scale-[1.015]" />
+          <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-4">
+            <span className="text-white text-xs font-bold bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10">View Photo</span>
           </div>
         </div>
+        
+        {/* Middle Top Image (1) */}
+        <div 
+          onClick={() => setActiveLightboxIndex(1)}
+          className="hidden md:block md:col-start-3 md:col-span-1 md:row-start-1 md:row-span-1 h-full relative overflow-hidden rounded-xl group cursor-pointer"
+        >
+          <img src={validGallery[1]} alt="Salon details" className="w-full h-full object-cover transition-all duration-500 group-hover:scale-[1.02]" />
+          <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-3">
+            <span className="text-white text-[10px] font-bold bg-black/40 backdrop-blur-md px-2 py-1 rounded-md border border-white/10">View Photo</span>
+          </div>
+        </div>
+        
+        {/* Right Top Image (2) */}
+        <div 
+          onClick={() => setActiveLightboxIndex(2)}
+          className="hidden md:block md:col-start-4 md:col-span-1 md:row-start-1 md:row-span-1 h-full relative overflow-hidden rounded-xl group cursor-pointer"
+        >
+          <img src={validGallery[2]} alt="Salon details" className="w-full h-full object-cover transition-all duration-500 group-hover:scale-[1.02]" />
+          <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-3">
+            <span className="text-white text-[10px] font-bold bg-black/40 backdrop-blur-md px-2 py-1 rounded-md border border-white/10">View Photo</span>
+          </div>
+        </div>
+        
+        {/* Middle Bottom Image (3) */}
         <div 
           onClick={() => setActiveLightboxIndex(3)}
-          className="hidden md:block h-full relative overflow-hidden group cursor-pointer"
+          className="hidden md:block md:col-start-3 md:col-span-1 md:row-start-2 md:row-span-1 h-full relative overflow-hidden rounded-xl group cursor-pointer"
         >
-          <img src={validGallery[3] || validGallery[0]} alt="Salon gallery" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+          <img src={validGallery[3]} alt="Salon details" className="w-full h-full object-cover transition-all duration-500 group-hover:scale-[1.02]" />
+          <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-3">
+            <span className="text-white text-[10px] font-bold bg-black/40 backdrop-blur-md px-2 py-1 rounded-md border border-white/10">View Photo</span>
+          </div>
+        </div>
+        
+        {/* Right Bottom Image (4) with Blur Overlay if > 5 */}
+        <div 
+          onClick={() => setActiveLightboxIndex(4)}
+          className="hidden md:block md:col-start-4 md:col-span-1 md:row-start-2 md:row-span-1 h-full relative overflow-hidden rounded-xl group cursor-pointer"
+        >
+          <img src={validGallery[4]} alt="Salon details" className="w-full h-full object-cover transition-all duration-500 group-hover:scale-[1.02]" />
+          
+          {validGallery.length > 5 ? (
+            <div className="absolute inset-0 bg-black/35 backdrop-blur-xs flex flex-col items-center justify-center text-center p-3 text-white transition-colors group-hover:bg-black/45">
+              <span className="font-extrabold text-xs tracking-wide">View all {validGallery.length} photos</span>
+            </div>
+          ) : (
+            <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-3">
+              <span className="text-white text-[10px] font-bold bg-black/40 backdrop-blur-md px-2 py-1 rounded-md border border-white/10">View Photo</span>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -734,8 +872,8 @@ export default function SalonBookingPage({
         setIsNewCustomer(false);
         setStep(5); // Proceed to Stripe Checkout
       }
-    } catch (err) {
-      alert("Registration failed. Please fill the required fields.");
+    } catch (err: any) {
+      alert(err.message || "Registration failed. Please check the fields and try again.");
     } finally {
       setIsVerifying(false);
     }

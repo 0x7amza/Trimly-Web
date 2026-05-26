@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
       ownerId: userIdOrError,
       name,
       slug: finalSlug,
-      industryType: industryType || undefined,
+      industryType: industryType || "Barber",
       city: city || undefined,
       subscription: { plan: "NONE", status: "TRIALING", trialEndsAt },
       maxBarbersIncluded: 5,

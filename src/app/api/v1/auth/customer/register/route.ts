@@ -13,21 +13,27 @@ export async function POST(request: NextRequest) {
 
     await connectDB();
 
-    const existing = await CustomerModel.findOne({ phone });
-    if (existing) {
-      return NextResponse.json({ success: false, error: "Phone number already registered" }, { status: 409 });
+    const passwordHash = password ? await bcrypt.hash(password, 10) : undefined;
+    let customer = await CustomerModel.findOne({ phone });
+
+    if (customer) {
+      // Update existing draft customer details (e.g. name, email, passwordHash)
+      customer.name = name;
+      if (email) customer.email = email;
+      if (passwordHash) customer.passwordHash = passwordHash;
+      await customer.save();
+    } else {
+      // Create new customer if not found (failsafe)
+      customer = await CustomerModel.create({ phone, email, name, passwordHash });
     }
 
-    const passwordHash = password ? await bcrypt.hash(password, 10) : undefined;
-
-    const customer = await CustomerModel.create({ phone, email, name, passwordHash });
     const token = await signCustomerToken(customer._id.toString());
 
     return NextResponse.json(
       {
         success: true,
         data: {
-          customer: { id: customer._id.toString(), phone, email, name },
+          customer: { id: customer._id.toString(), phone, email, name: customer.name },
           token,
         },
       },
