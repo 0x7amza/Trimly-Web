@@ -10,7 +10,7 @@ export async function POST(request: NextRequest) {
   if (userIdOrError instanceof NextResponse) return userIdOrError;
 
   try {
-    const { name, email } = await request.json();
+    const { name, email, shopId } = await request.json();
     if (!name || !email) {
       return NextResponse.json({ success: false, error: "Name and email required" }, { status: 400 });
     }
@@ -35,20 +35,30 @@ export async function POST(request: NextRequest) {
         // If a pending barber exists, claim this record with the real clerkId
         barber.clerkId = userIdOrError;
         barber.name = name;
+        if (shopId) {
+          barber.shopId = shopId;
+          barber.role = "BARBER";
+        }
         await barber.save();
       } else {
-        // 3. Otherwise, create a brand new OWNER profile
+        // 3. Otherwise, create profile
+        const targetRole = shopId ? "BARBER" : "OWNER";
         barber = await BarberModel.create({
           clerkId: userIdOrError,
-          role: "OWNER",
+          role: targetRole,
           name,
           email,
+          shopId: shopId || undefined,
         });
       }
     } else {
       // Update name/email if they changed on Clerk side
       barber.name = name;
       barber.email = email;
+      if (shopId) {
+        barber.shopId = shopId;
+        barber.role = "BARBER";
+      }
       await barber.save();
     }
 

@@ -169,7 +169,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
     { label: "Analytics", path: "/dashboard/analytics", icon: TrendingUp, roles: ["OWNER", "BARBER"] },
     { label: "Staff", path: "/dashboard/staff", icon: Users, roles: ["OWNER"] },
     { label: "Billing", path: "/dashboard/billing", icon: CreditCard, roles: ["OWNER"] },
-    { label: "Settings", path: "/dashboard/settings", icon: SettingsIcon, roles: ["OWNER", "BARBER"] },
+    { label: "Settings", path: "/dashboard/settings", icon: SettingsIcon, roles: ["OWNER"] },
   ];
 
   // Filter items based on active role

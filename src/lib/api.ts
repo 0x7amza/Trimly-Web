@@ -38,7 +38,9 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     path.startsWith("/shops") ||
     path.startsWith("/statistics") ||
     path.startsWith("/bookings/manual") ||
-    path.startsWith("/bookings/me/barber");
+    path.startsWith("/bookings/me/barber") ||
+    // Dynamic booking routes — e.g. /bookings/{id}/status (Complete/Cancel job)
+    (path.startsWith("/bookings/") && !path.startsWith("/bookings/me/customer") && !path.startsWith("/bookings/online") && !path.startsWith("/bookings/barber/"));
 
   let token: string | null = null;
 
@@ -138,7 +140,7 @@ export const api = {
 
   // 2. BARBERS (B2B)
   barbers: {
-    sync: (payload: { name: string; email: string }) =>
+    sync: (payload: { name: string; email: string; shopId?: string }) =>
       request<{ success: boolean; data: Barber }>("/barbers/sync", {
         method: "POST",
         body: JSON.stringify(payload),

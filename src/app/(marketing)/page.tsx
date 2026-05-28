@@ -291,12 +291,8 @@ export default function MarketingPage() {
                       )}
                     </div>
 
-                    {/* Rating & Barbers */}
+                    {/* Specialists Count (real) — no fake stars */}
                     <div className="flex items-center gap-4 text-xs">
-                      <div className="flex items-center gap-1 text-ink font-bold">
-                        <Star className="w-3.5 h-3.5 fill-warning text-warning" />
-                        4.9 <span className="text-mute-text font-normal">(184 reviews)</span>
-                      </div>
                       <div className="flex items-center gap-1 text-mute-text">
                         <Users className="w-3.5 h-3.5" />
                         <span>
@@ -306,6 +302,12 @@ export default function MarketingPage() {
                           }
                         </span>
                       </div>
+                      {heroShop.status === "real" && (
+                        <div className="flex items-center gap-1 text-mute-text">
+                          <Star className="w-3.5 h-3.5" />
+                          <span className="text-[10px] font-semibold">Live booking preview</span>
+                        </div>
+                      )}
                     </div>
 
                     {/* Services Selection Mockup */}

@@ -32,6 +32,7 @@ export async function GET(
           images: shop.images,
           galleryPictures: shop.galleryPictures,
           mapUrl: shop.mapUrl,
+          googleMapsUrl: shop.googleMapsUrl,
           country: shop.country,
           state: shop.state,
           city: shop.city,

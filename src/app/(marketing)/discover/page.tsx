@@ -17,6 +17,8 @@ type SearchResult = {
   industryType?: string;
   city?: string;
   address?: string;
+  avgRating?: number;
+  totalReviews?: number;
 };
 
 function DiscoverDirectory() {
@@ -129,10 +131,16 @@ function DiscoverDirectory() {
                       <Scissors className="w-3 h-3" />
                       <span>Barbershop</span>
                     </span>
-                    <span className="badge-positive text-[9px] uppercase tracking-wider bg-canvas/95 backdrop-blur-sm text-positive-deep border border-ink/5 shadow-sm z-10 flex items-center gap-1">
-                      <Star className="w-2.5 h-2.5 fill-positive-deep text-positive-deep" />
-                      <span>Verified</span>
-                    </span>
+                    {item.totalReviews && item.totalReviews > 0 ? (
+                      <span className="badge-positive text-[9px] uppercase tracking-wider bg-canvas/95 backdrop-blur-sm text-positive-deep border border-ink/5 shadow-sm z-10 flex items-center gap-1">
+                        <Star className="w-2.5 h-2.5 fill-positive-deep text-positive-deep" />
+                        <span>{item.avgRating?.toFixed(1)} ({item.totalReviews})</span>
+                      </span>
+                    ) : (
+                      <span className="text-[9px] uppercase tracking-wider bg-canvas/95 backdrop-blur-sm text-mute-text border border-ink/5 shadow-sm rounded-full px-2 py-0.5 z-10 flex items-center gap-1 font-bold">
+                        <span>No reviews yet</span>
+                      </span>
+                    )}
                   </div>
                   <div className="p-6 flex-grow flex flex-col justify-between space-y-4">
                     <div>

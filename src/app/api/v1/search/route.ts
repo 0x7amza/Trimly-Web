@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import { ShopModel } from "@/lib/models/Shop";
+import { ReviewModel } from "@/lib/models/Review";
 
 // GET /api/v1/search?city=&country=&state=&searchQuery=&page=1&limit=10
 export async function GET(request: NextRequest) {
@@ -46,18 +47,40 @@ export async function GET(request: NextRequest) {
     const rawCities = await ShopModel.distinct("city", citiesFilter);
     const activeCities = rawCities.filter(Boolean);
 
-    const results = shops.map((s) => ({
-      type: "shop",
-      id: s._id.toString(),
-      name: s.name,
-      slug: s.slug,
-      profileImage: s.profileImage || (s as any).profilePicture,
-      images: s.images?.length ? s.images : (s as any).galleryPictures,
-      country: s.country,
-      state: s.state,
-      city: s.city,
-      address: s.address,
-    }));
+    // Fetch reviews for matched shops to calculate real rating statistics
+    const shopIds = shops.map((s) => s._id);
+    const reviews = await ReviewModel.find({ shopId: { $in: shopIds } }).lean();
+
+    // Group reviews by shopId
+    const reviewsByShop: Record<string, { total: number; sum: number }> = {};
+    for (const r of reviews) {
+      const sId = r.shopId.toString();
+      if (!reviewsByShop[sId]) {
+        reviewsByShop[sId] = { total: 0, sum: 0 };
+      }
+      reviewsByShop[sId].total += 1;
+      reviewsByShop[sId].sum += r.rating;
+    }
+
+    const results = shops.map((s) => {
+      const sId = s._id.toString();
+      const shopReviews = reviewsByShop[sId] || { total: 0, sum: 0 };
+      const avgRating = shopReviews.total > 0 ? Number((shopReviews.sum / shopReviews.total).toFixed(1)) : 0;
+      return {
+        type: "shop",
+        id: sId,
+        name: s.name,
+        slug: s.slug,
+        profileImage: s.profileImage || (s as any).profilePicture,
+        images: s.images?.length ? s.images : (s as any).galleryPictures,
+        country: s.country,
+        state: s.state,
+        city: s.city,
+        address: s.address,
+        avgRating,
+        totalReviews: shopReviews.total,
+      };
+    });
 
     return NextResponse.json({
       success: true,

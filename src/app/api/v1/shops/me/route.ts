@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import { ShopModel } from "@/lib/models/Shop";
 import { BarberModel } from "@/lib/models/Barber";
-import { requireBarber } from "@/lib/auth";
+import { requireBarber, requireOwner } from "@/lib/auth";
 
 function serializeShop(shop: InstanceType<typeof ShopModel>) {
   return {
@@ -25,6 +25,7 @@ function serializeShop(shop: InstanceType<typeof ShopModel>) {
     images: shop.images,
     galleryPictures: shop.galleryPictures,
     mapUrl: shop.mapUrl,
+    googleMapsUrl: shop.googleMapsUrl,
     country: shop.country,
     state: shop.state,
     city: shop.city,
@@ -82,19 +83,76 @@ export async function GET() {
   }
 }
 
+async function sanitizeAndResolveMapUrl(url: string | undefined): Promise<string | undefined> {
+  if (!url) return url;
+  let cleanUrl = url.trim();
+
+  // If iframe format, extract the src URL
+  if (cleanUrl.includes("<iframe")) {
+    const match = cleanUrl.match(/src="([^"]+)"/);
+    if (match && match[1]) {
+      cleanUrl = match[1];
+    }
+  }
+
+  // Resolve short google maps URL to long format via server-side fetch redirects
+  if (cleanUrl.includes("maps.app.goo.gl") || cleanUrl.includes("goo.gl/maps")) {
+    try {
+      const response = await fetch(cleanUrl, {
+        method: "HEAD",
+        redirect: "follow",
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        }
+      });
+      if (response.url && response.url !== cleanUrl) {
+        cleanUrl = response.url;
+      }
+    } catch (err) {
+      console.error("Error resolving short Google Maps URL:", err);
+      try {
+        const response = await fetch(cleanUrl, {
+          method: "GET",
+          redirect: "follow",
+          headers: {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+          }
+        });
+        if (response.url && response.url !== cleanUrl) {
+          cleanUrl = response.url;
+        }
+      } catch (err2) {
+        console.error("Secondary resolve attempt failed:", err2);
+      }
+    }
+  }
+
+  return cleanUrl;
+}
+
 // PUT /api/v1/shops/me
 export async function PUT(request: NextRequest) {
-  const result = await requireBarber();
+  const result = await requireOwner();
   if ("error" in result) return result.error;
 
   try {
     const body = await request.json();
     await connectDB();
 
-    const allowedFields = ["name", "profileImage", "profilePicture", "images", "galleryPictures", "mapUrl", "country", "state", "city", "address", "businessHours"];
+    const allowedFields = ["name", "profileImage", "profilePicture", "images", "galleryPictures", "mapUrl", "googleMapsUrl", "country", "state", "city", "address", "businessHours"];
     const update: Record<string, any> = {};
     for (const key of allowedFields) {
       if (body[key] !== undefined) update[key] = body[key];
+    }
+
+    if (update.googleMapsUrl !== undefined) {
+      const sanitized = await sanitizeAndResolveMapUrl(update.googleMapsUrl);
+      update.googleMapsUrl = sanitized;
+      update.mapUrl = sanitized; // Sync for backward compatibility
+    } else if (update.mapUrl !== undefined) {
+      const sanitized = await sanitizeAndResolveMapUrl(update.mapUrl);
+      update.mapUrl = sanitized;
+      update.googleMapsUrl = sanitized; // Sync
     }
 
     // Auto-sync city with state update

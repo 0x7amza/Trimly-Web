@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { api, Barber, Service, Customer, Shop, Product } from "@/lib/api";
+import PhoneInput from "@/components/ui/PhoneInput";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements, CardElement, useStripe, useElements } from "@stripe/react-stripe-js";
 import Link from "next/link";
@@ -30,6 +31,7 @@ import {
   Trash2,
   ExternalLink
 } from "lucide-react";
+import { getEmbeddableMapUrl } from "@/lib/utils";
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || "pk_test_mock");
 
@@ -47,19 +49,25 @@ const DEFAULT_BUSINESS_HOURS = [
 
 // Reusable Leaflet/OpenStreetMap Frame layout
 function MockMap({ address, mapUrl }: { address: string; mapUrl?: string }) {
-  let query = "";
-  if (mapUrl?.trim()) {
-    const trimmed = mapUrl.trim();
-    // Parse google maps iframe or search link if pasted
-    if (trimmed.includes("src=\"")) {
-      const match = trimmed.match(/src="([^"]+)"/);
-      query = match ? match[1] : trimmed;
-    } else {
-      query = trimmed;
-    }
-  } else if (address?.trim()) {
-    query = address.trim();
+  const embedUrl = mapUrl ? getEmbeddableMapUrl(mapUrl) : "";
+
+  if (embedUrl) {
+    return (
+      <div className="relative h-48 w-full rounded-2xl overflow-hidden border border-ink/10 shadow-sm bg-canvas-soft">
+        <iframe
+          title="Interactive Google Map"
+          width="100%"
+          height="100%"
+          style={{ border: 0 }}
+          loading="lazy"
+          referrerPolicy="no-referrer-when-downgrade"
+          src={embedUrl}
+        />
+      </div>
+    );
   }
+
+  const query = address?.trim() || "";
 
   if (!query) {
     return (
@@ -387,9 +395,10 @@ export default function SalonBookingPage({
   }, [salonSlug]);
 
   const totalReviews = realReviews.length;
+  // FIXED: Do NOT use a fake fallback rating — show real data only
   const avgRating = totalReviews > 0
     ? realReviews.reduce((sum, r) => sum + r.rating, 0) / totalReviews
-    : 4.9; // Default fallback if no reviews
+    : 0;
 
   const handleReviewSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -420,12 +429,17 @@ export default function SalonBookingPage({
 
   // Customer Auth / Verification
   const [phone, setPhone] = useState("");
+  const [isPhoneValid, setIsPhoneValid] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [otpCode, setOtpCode] = useState("");
   const [isOtpSent, setIsOtpSent] = useState(false);
+  const [isSendingOtp, setIsSendingOtp] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [isNewCustomer, setIsNewCustomer] = useState(false);
+  const [otpSendError, setOtpSendError] = useState("");
+  const [otpVerifyError, setOtpVerifyError] = useState("");
+  const [sandboxOtp, setSandboxOtp] = useState<string | null>(null);
   const [customer, setCustomer] = useState<Customer | null>(null);
 
   const gallery = (shop?.images && shop.images.filter(Boolean).length > 0)
@@ -829,14 +843,25 @@ export default function SalonBookingPage({
 
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!phone) return;
+    if (!phone || !isPhoneValid) return;
+    setIsSendingOtp(true);
+    setOtpSendError("");
+    setSandboxOtp(null);
     try {
-      const res = await api.auth.sendOtp(phone);
+      const res = await api.auth.sendOtp(phone) as any;
       if (res.success) {
         setIsOtpSent(true);
+        // Development sandbox: display the OTP in the UI if returned
+        if (res.sandboxOtp) {
+          setSandboxOtp(res.sandboxOtp);
+        }
+      } else {
+        setOtpSendError(res.error || "Failed to send code. Please try again.");
       }
-    } catch (err) {
-      alert("Error sending OTP. Please try again.");
+    } catch (err: any) {
+      setOtpSendError(err.message || "Failed to send code. Please check your number and try again.");
+    } finally {
+      setIsSendingOtp(false);
     }
   };
 
@@ -844,18 +869,22 @@ export default function SalonBookingPage({
     e.preventDefault();
     if (!phone || !otpCode) return;
     setIsVerifying(true);
+    setOtpVerifyError("");
     try {
       const res = await api.auth.verifyOtp(phone, otpCode);
       if (res.success) {
+        setSandboxOtp(null);
         if (res.data.isNew) {
           setIsNewCustomer(true);
         } else {
           setCustomer(res.data.customer);
           setStep(5); // Proceed to Stripe Checkout
         }
+      } else {
+        setOtpVerifyError((res as any).error || "Invalid code. Please try again.");
       }
-    } catch (err) {
-      alert("Invalid verification code. Please check the code and try again.");
+    } catch (err: any) {
+      setOtpVerifyError(err.message || "Invalid verification code. Please check and try again.");
     } finally {
       setIsVerifying(false);
     }
@@ -865,15 +894,18 @@ export default function SalonBookingPage({
     e.preventDefault();
     if (!phone || !name || !email) return;
     setIsVerifying(true);
+    setOtpVerifyError("");
     try {
       const res = await api.auth.register({ phone, email, name });
       if (res.success) {
         setCustomer(res.data.customer);
         setIsNewCustomer(false);
-        setStep(5); // Proceed to Stripe Checkout
+        setStep(5);
+      } else {
+        setOtpVerifyError((res as any).error || "Registration failed. Please try again.");
       }
     } catch (err: any) {
-      alert(err.message || "Registration failed. Please check the fields and try again.");
+      setOtpVerifyError(err.message || "Registration failed. Please check your details and try again.");
     } finally {
       setIsVerifying(false);
     }
@@ -949,23 +981,35 @@ export default function SalonBookingPage({
             </p>
           </div>
           <div className="flex items-center gap-2.5 bg-canvas border border-ink/5 p-3 rounded-xl shadow-sm">
-            <div className="flex items-center gap-0.5 text-warning">
-              <Star className="w-4 h-4 fill-warning" />
-              <span className="font-extrabold text-sm text-ink ml-1">{avgRating.toFixed(1)}</span>
-            </div>
-            <div className="h-4 w-px bg-ink/10" />
-            <button
-              onClick={() => setShowReviewsModal(true)}
-              className="text-[11px] font-bold text-mute-text hover:text-ink hover:underline cursor-pointer"
-            >
-              {totalReviews} {totalReviews === 1 ? "Review" : "Reviews"}
-            </button>
+            {totalReviews > 0 ? (
+              <>
+                <div className="flex items-center gap-0.5 text-warning">
+                  <Star className="w-4 h-4 fill-warning" />
+                  <span className="font-extrabold text-sm text-ink ml-1">{avgRating.toFixed(1)}</span>
+                </div>
+                <div className="h-4 w-px bg-ink/10" />
+                <button
+                  onClick={() => setShowReviewsModal(true)}
+                  className="text-[11px] font-bold text-mute-text hover:text-ink hover:underline cursor-pointer"
+                >
+                  {totalReviews} {totalReviews === 1 ? "Review" : "Reviews"}
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => setShowReviewsModal(true)}
+                className="text-[11px] font-bold text-mute-text hover:text-ink cursor-pointer flex items-center gap-1"
+              >
+                <Star className="w-3.5 h-3.5" />
+                No reviews yet
+              </button>
+            )}
             <div className="h-4 w-px bg-ink/10" />
             <button
               onClick={() => setShowReviewsModal(true)}
               className="text-[11px] font-extrabold text-primary-deep bg-primary-pale hover:bg-primary px-2 py-0.5 rounded-md transition-colors cursor-pointer"
             >
-              Notes
+              {totalReviews > 0 ? "All Reviews" : "Leave a Review"}
             </button>
           </div>
         </div>
@@ -1161,7 +1205,7 @@ export default function SalonBookingPage({
                   </a>
                 )}
               </div>
-              <MockMap address={address} mapUrl={shop?.mapUrl} />
+              <MockMap address={address} mapUrl={shop?.googleMapsUrl || shop?.mapUrl} />
             </div>
 
             {/* Opening Hours Table — reads from shop.businessHours saved in dashboard */}
@@ -1447,50 +1491,94 @@ export default function SalonBookingPage({
                               <label className="block text-xs font-bold uppercase tracking-wider text-mute-text mb-2">
                                 Mobile Number
                               </label>
-                              <input
-                                type="tel"
-                                placeholder="+447000000000"
+                              <PhoneInput
+                                id="customer-phone"
                                 value={phone}
-                                onChange={(e) => setPhone(e.target.value)}
-                                className="text-input font-bold"
+                                onChange={setPhone}
+                                onValidChange={setIsPhoneValid}
                                 required
                               />
                             </div>
-                            <button type="submit" className="button-primary w-full py-4 cursor-pointer">
-                              Send Code
+                            {otpSendError && (
+                              <div className="text-xs font-bold text-red-600 bg-red-50 border border-red-200 rounded-xl p-3 flex items-center gap-2">
+                                <span className="flex-shrink-0">⚠️</span>
+                                <span>{otpSendError}</span>
+                              </div>
+                            )}
+                            <button
+                              type="submit"
+                              disabled={isSendingOtp || !isPhoneValid}
+                              className="button-primary w-full py-4 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                            >
+                              {isSendingOtp ? (
+                                <>
+                                  <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                                  Sending...
+                                </>
+                              ) : "Send Verification Code"}
                             </button>
                           </form>
                         ) : (
                           <form onSubmit={handleVerifyOtp} className="space-y-4">
                             <div className="bg-primary-pale p-3 rounded-xl border border-primary/20 text-xs font-bold text-ink-deep text-center">
-                              Enter the 6-digit verification code sent to your phone.
+                              Code sent to <span className="font-black">{phone}</span>
                             </div>
+
+                            {/* Sandbox development OTP display */}
+                            {sandboxOtp && (
+                              <div className="bg-amber-50 border border-amber-300 rounded-xl p-3 text-center space-y-1">
+                                <p className="text-[10px] font-bold text-amber-700 uppercase tracking-wider">🛠 Development Sandbox</p>
+                                <p className="text-2xl font-black text-amber-900 tracking-widest">{sandboxOtp}</p>
+                                <p className="text-[10px] text-amber-600 font-semibold">This code won&apos;t appear in production</p>
+                              </div>
+                            )}
+
                             <div>
                               <label className="block text-xs font-bold uppercase tracking-wider text-mute-text mb-2">
                                 Enter 6-Digit Code
                               </label>
                               <input
                                 type="text"
+                                inputMode="numeric"
                                 maxLength={6}
                                 placeholder="123456"
                                 value={otpCode}
-                                onChange={(e) => setOtpCode(e.target.value)}
+                                onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
                                 className="text-input text-center font-extrabold text-2xl tracking-widest"
+                                autoFocus
                                 required
                               />
                             </div>
-                            <button type="submit" className="button-primary w-full py-4 cursor-pointer" disabled={isVerifying}>
-                              {isVerifying ? "Verifying..." : "Verify & Continue"}
+
+                            {otpVerifyError && (
+                              <div className="text-xs font-bold text-red-600 bg-red-50 border border-red-200 rounded-xl p-3 flex items-center gap-2">
+                                <span className="flex-shrink-0">⚠️</span>
+                                <span>{otpVerifyError}</span>
+                              </div>
+                            )}
+
+                            <button
+                              type="submit"
+                              className="button-primary w-full py-4 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                              disabled={isVerifying || otpCode.length !== 6}
+                            >
+                              {isVerifying ? (
+                                <>
+                                  <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                                  Verifying...
+                                </>
+                              ) : "Verify & Continue"}
                             </button>
                             <button
                               type="button"
-                              onClick={() => setIsOtpSent(false)}
+                              onClick={() => { setIsOtpSent(false); setOtpCode(""); setOtpSendError(""); setOtpVerifyError(""); setSandboxOtp(null); }}
                               className="w-full text-center text-xs font-bold text-mute-text hover:text-ink mt-2 cursor-pointer"
                             >
-                              Change phone number
+                              ← Change phone number
                             </button>
                           </form>
                         )}
+
                       </div>
 
                       <div className="text-[10px] text-mute-text">

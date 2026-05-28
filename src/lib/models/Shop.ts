@@ -46,6 +46,7 @@ export interface IShop extends Document {
   images?: string[];
   galleryPictures?: string[];
   mapUrl?: string;
+  googleMapsUrl?: string;
   country?: string;
   state?: string;
   city?: string;
@@ -65,6 +66,7 @@ const ShopSchema = new Schema<IShop>(
     images: [String],
     galleryPictures: [String],
     mapUrl: String,
+    googleMapsUrl: String,
     country: String,
     state: String,
     city: String,

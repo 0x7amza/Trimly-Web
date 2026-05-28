@@ -5,7 +5,7 @@ import { useB2BAuth } from "@/components/providers";
 import { Link2, Copy, CheckCheck, Users, Scissors, ExternalLink } from "lucide-react";
 
 export default function StaffPage() {
-  const { role, allBarbers } = useB2BAuth();
+  const { role, allBarbers, shop } = useB2BAuth();
   const [copied, setCopied] = useState(false);
 
   // Guard: Owner only page
@@ -25,8 +25,8 @@ export default function StaffPage() {
 
   const inviteLink =
     typeof window !== "undefined"
-      ? `${window.location.origin}/for-professionals`
-      : "/for-professionals";
+      ? `${window.location.origin}/for-professionals?shopId=${shop?.id || ""}`
+      : `/for-professionals?shopId=${shop?.id || ""}`;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(inviteLink).then(() => {

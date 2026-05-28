@@ -3,7 +3,7 @@ import { connectDB } from "@/lib/db";
 import { CustomerModel } from "@/lib/models/Customer";
 
 // Generates a 6-digit OTP and saves it (expires in 10 minutes)
-// In production: send via Twilio/WhatsApp. Here we log it to console.
+// Sends via Twilio SMS if configured, or returns sandbox OTP in dev mode
 export async function POST(request: NextRequest) {
   try {
     const { phone } = await request.json();
@@ -12,10 +12,14 @@ export async function POST(request: NextRequest) {
     }
 
     const cleanPhone = phone.trim();
-    // Validate phone number: must be at least 10 digits
-    const phoneRegex = /^\+?[0-9]{10,15}$/;
+
+    // Enforce strict E.164 international format: +[country code][number], 7–15 digits total
+    const phoneRegex = /^\+[1-9]\d{6,14}$/;
     if (!phoneRegex.test(cleanPhone)) {
-      return NextResponse.json({ success: false, error: "Please enter a valid phone number with country code (e.g. +447000000000)" }, { status: 400 });
+      return NextResponse.json(
+        { success: false, error: "Please enter a valid phone number in international format (e.g. +447911123456)" },
+        { status: 400 }
+      );
     }
 
     await connectDB();
@@ -32,14 +36,16 @@ export async function POST(request: NextRequest) {
     const sid = process.env.TWILIO_ACCOUNT_SID;
     const token = process.env.TWILIO_AUTH_TOKEN;
     const fromNumber = process.env.TWILIO_PHONE_NUMBER;
+    const isDev = process.env.NODE_ENV !== "production";
 
     if (sid && token && fromNumber) {
+      // Production: Send real SMS via Twilio
       const url = `https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`;
       const basicAuth = Buffer.from(`${sid}:${token}`).toString("base64");
       const twilioBody = new URLSearchParams({
         From: fromNumber,
         To: cleanPhone,
-        Body: `Your Trimly verification code is: ${otp}`,
+        Body: `Your Trimly verification code is: ${otp}. Valid for 10 minutes.`,
       });
 
       const twilioRes = await fetch(url, {
@@ -54,15 +60,25 @@ export async function POST(request: NextRequest) {
       if (!twilioRes.ok) {
         const errText = await twilioRes.text();
         console.error("Twilio SMS send failed:", errText);
-        return NextResponse.json({ success: false, error: "Failed to dispatch verification SMS via Twilio." }, { status: 502 });
+        return NextResponse.json(
+          { success: false, error: "Failed to dispatch verification SMS. Please try again." },
+          { status: 502 }
+        );
       }
-    } else {
-      console.log(`[OTP Sandbox Fallback] Phone: ${cleanPhone} | Code: ${otp}`);
-    }
 
-    return NextResponse.json({ success: true, message: "OTP sent successfully" });
+      return NextResponse.json({ success: true, message: "OTP sent successfully" });
+    } else {
+      // Sandbox/Development: Log OTP and return it in response for easy testing
+      console.log(`[OTP Sandbox] Phone: ${cleanPhone} | Code: ${otp}`);
+      return NextResponse.json({
+        success: true,
+        message: "OTP sent (sandbox mode)",
+        // Only expose OTP in non-production environments for developer testing
+        ...(isDev && { sandboxOtp: otp }),
+      });
+    }
   } catch (err) {
     console.error("[send-otp]", err);
-    return NextResponse.json({ success: false, error: "Failed to send OTP" }, { status: 500 });
+    return NextResponse.json({ success: false, error: "Failed to send OTP. Please try again." }, { status: 500 });
   }
 }

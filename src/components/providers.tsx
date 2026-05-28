@@ -31,12 +31,25 @@ export function B2BProviders({ children }: { children: React.ReactNode }) {
       const clerkEmail = user.primaryEmailAddress?.emailAddress ?? "";
       const clerkName = user.fullName || user.username || "Authenticated User";
 
+      let inviteShopId: string | undefined = undefined;
+      if (typeof window !== "undefined") {
+        const stored = localStorage.getItem("inviteShopId");
+        if (stored) inviteShopId = stored;
+      }
+
       // Sync with backend — creates or updates the barber record
-      const syncRes = await api.barbers.sync({ name: clerkName, email: clerkEmail });
+      const syncRes = await api.barbers.sync({
+        name: clerkName,
+        email: clerkEmail,
+        shopId: inviteShopId,
+      });
 
       if (syncRes.success) {
         setActiveBarber(syncRes.data);
         setRole(syncRes.data.role);
+        if (typeof window !== "undefined") {
+          localStorage.removeItem("inviteShopId");
+        }
       }
 
       // Try to load shop data

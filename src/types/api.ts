@@ -52,7 +52,10 @@ export interface Shop {
   city?: string;
   address?: string;
   mapUrl?: string;
+  googleMapsUrl?: string;
   businessHours?: BusinessHours[];
+  avgRating?: number;
+  totalReviews?: number;
 }
 
 export interface ShopWithBarbers {
@@ -96,6 +99,8 @@ export interface Booking {
   paymentIntentId?: string;
   type: "ONLINE" | "MANUAL";
   notes?: string;
+  customerName?: string;   // walk-in or online customer name
+  customerPhone?: string;  // used to call the customer directly
 }
 
 export interface Product {

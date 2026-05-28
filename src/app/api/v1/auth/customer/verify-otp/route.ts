@@ -13,18 +13,32 @@ export async function POST(request: NextRequest) {
     await connectDB();
     const customer = await CustomerModel.findOne({ phone });
 
-    if (!customer || customer.otp !== code) {
-      return NextResponse.json({ success: false, error: "Invalid OTP" }, { status: 400 });
+    if (!customer) {
+      return NextResponse.json(
+        { success: false, error: "No account found for this number. Please request a new code." },
+        { status: 400 }
+      );
     }
 
+    // Check expiry first to give a more useful error
     if (!customer.otpExpiresAt || customer.otpExpiresAt < new Date()) {
-      return NextResponse.json({ success: false, error: "OTP has expired" }, { status: 400 });
+      return NextResponse.json(
+        { success: false, error: "Your code has expired. Please request a new one." },
+        { status: 400 }
+      );
     }
 
-    // Clear OTP after use
+    if (customer.otp !== code) {
+      return NextResponse.json(
+        { success: false, error: "Incorrect verification code. Please check and try again." },
+        { status: 400 }
+      );
+    }
+
+    // Clear OTP after successful verification
     customer.otp = undefined;
     customer.otpExpiresAt = undefined;
-    const isNew = !customer.name;
+    const isNew = !customer.name || customer.name === "New Customer";
     if (isNew) customer.name = "New Customer";
     await customer.save();
 
@@ -45,6 +59,6 @@ export async function POST(request: NextRequest) {
     });
   } catch (err) {
     console.error("[verify-otp]", err);
-    return NextResponse.json({ success: false, error: "Verification failed" }, { status: 500 });
+    return NextResponse.json({ success: false, error: "Verification failed. Please try again." }, { status: 500 });
   }
 }

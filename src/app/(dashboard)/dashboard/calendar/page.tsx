@@ -251,17 +251,25 @@ export default function CalendarPage() {
                           zIndex: 10,
                         }}
                       >
-                        <div className="flex justify-between items-center">
-                          <span className="font-bold text-sm">
-                            {isBlocked
-                              ? `Blocked: ${booking.notes?.replace("[BLOCKED]", "").trim() || "No reason"}`
-                              : `${booking.serviceSnapshot.name} — ${booking.notes || "No notes"}`}
-                          </span>
-                          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-white/60">
+                        <div className="flex justify-between items-start gap-2">
+                          <div className="min-w-0">
+                            <span className="font-bold text-sm block truncate">
+                              {isBlocked
+                                ? `Blocked: ${booking.notes?.replace("[BLOCKED]", "").trim() || "No reason"}`
+                                : booking.serviceSnapshot.name}
+                            </span>
+                            {/* Customer name on the timeline card */}
+                            {!isBlocked && (booking.customerName || booking.type === "ONLINE") && (
+                              <span className="text-[11px] font-semibold opacity-70 block truncate">
+                                {booking.customerName || "Online Booking"}
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-white/60 flex-shrink-0">
                             {isBlocked ? "BLOCKED" : booking.type}
                           </span>
                         </div>
-                        <span className="text-xs opacity-75">
+                        <span className="text-xs opacity-75 mt-1">
                           {new Date(booking.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })} -{" "}
                           {new Date(booking.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })}
                         </span>
@@ -484,6 +492,45 @@ export default function CalendarPage() {
             </div>
 
             <div className="space-y-5">
+              {/* Customer Info Card */}
+              {!selectedBooking.notes?.startsWith("[BLOCKED]") && (
+                <div className="bg-canvas-soft/60 border border-ink/5 rounded-xl p-4 space-y-2">
+                  <span className="block text-[10px] font-bold uppercase tracking-wider text-mute-text">
+                    Customer Details
+                  </span>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center font-black text-base text-ink flex-shrink-0 border border-ink/10">
+                        {(selectedBooking.customerName || "?").charAt(0).toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-extrabold text-ink truncate">
+                          {selectedBooking.customerName || (selectedBooking.type === "ONLINE" ? "Online Customer" : "Walk-in")}
+                        </p>
+                        {selectedBooking.customerPhone ? (
+                          <a
+                            href={`tel:${selectedBooking.customerPhone}`}
+                            className="text-xs font-bold text-primary-deep hover:underline"
+                          >
+                            📞 {selectedBooking.customerPhone}
+                          </a>
+                        ) : (
+                          <span className="text-[11px] text-mute-text font-semibold">No phone on record</span>
+                        )}
+                      </div>
+                    </div>
+                    {selectedBooking.customerPhone && (
+                      <a
+                        href={`tel:${selectedBooking.customerPhone}`}
+                        className="flex-shrink-0 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 border border-emerald-300 text-[11px] font-black px-3 py-2 rounded-xl transition-colors whitespace-nowrap"
+                      >
+                        Call Now
+                      </a>
+                    )}
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-4 pb-4 border-b border-ink/5">
                 <div>
                   <span className="block text-[10px] font-bold uppercase tracking-wider text-mute-text mb-0.5">

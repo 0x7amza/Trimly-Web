@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { SignIn, SignUp } from "@clerk/nextjs";
 import {
   Sparkles,
@@ -18,6 +18,16 @@ type View = "choose" | "signin" | "signup";
 
 export default function ForProfessionalsPage() {
   const [view, setView] = useState<View>("choose");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const shopId = params.get("shopId");
+      if (shopId) {
+        localStorage.setItem("inviteShopId", shopId);
+      }
+    }
+  }, []);
 
   return (
     <div className="min-h-screen bg-canvas-soft flex items-center justify-center py-16 px-4 md:px-8 relative overflow-hidden">

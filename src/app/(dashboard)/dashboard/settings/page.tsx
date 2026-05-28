@@ -6,6 +6,7 @@ import { useB2BAuth } from "@/components/providers";
 import { CustomCombobox } from "@/components/ui/custom-combobox";
 import { COUNTRY_OPTIONS, COUNTRIES } from "@/lib/locations";
 import { compressImage } from "@/lib/image-utils";
+import { getEmbeddableMapUrl } from "@/lib/utils";
 import {
   Building2,
   Image as ImageIcon,
@@ -37,7 +38,7 @@ const inputCls =
   "w-full bg-canvas border border-ink/10 rounded-xl py-3 px-4 text-xs font-bold text-ink focus:outline-none focus:border-ink transition-colors shadow-sm";
 
 export default function SettingsPage() {
-  const { activeBarber } = useB2BAuth();
+  const { role, activeBarber } = useB2BAuth();
   const [shop, setShop] = useState<Shop | null>(null);
 
   // Identity
@@ -52,6 +53,7 @@ export default function SettingsPage() {
   const [city, setCity] = useState("");
   const [address, setAddress] = useState("");
   const [mapUrl, setMapUrl] = useState("");
+  const [googleMapsUrl, setGoogleMapsUrl] = useState("");
 
   // Opening Hours
   const [businessHours, setBusinessHours] = useState<BusinessHours[]>(DEFAULT_HOURS);
@@ -83,6 +85,7 @@ export default function SettingsPage() {
         setCity(s.city || "");
         setAddress(s.address || "");
         setMapUrl(s.mapUrl || "");
+        setGoogleMapsUrl(s.googleMapsUrl || s.mapUrl || "");
         setBusinessHours(s.businessHours && s.businessHours.length > 0 ? s.businessHours : DEFAULT_HOURS);
       }
     } catch (err: any) {
@@ -165,11 +168,13 @@ export default function SettingsPage() {
         name: shopName,
         country,
         state,
+        profileImage: profilePicture,
         profilePicture,
         galleryPictures,
-        city: state, // Sync city with state
+        city: city || state, // use explicit city or fall back to state
         address,
-        mapUrl,
+        mapUrl: googleMapsUrl,
+        googleMapsUrl,
         businessHours,
       });
       if (res.success) {
@@ -183,6 +188,21 @@ export default function SettingsPage() {
       setSaving(false);
     }
   };
+
+  // Guard: Owner only page
+  if (role !== "OWNER") {
+    return (
+      <div className="card-feature-sage p-12 text-center border border-ink/5 max-w-lg mx-auto mt-12">
+        <div className="w-16 h-16 bg-negative-bg text-white rounded-full flex items-center justify-center mx-auto mb-6">
+          <span className="text-3xl">🚫</span>
+        </div>
+        <h3 className="text-2xl font-black text-ink mb-3">Access Restricted</h3>
+        <p className="text-sm text-body-text">
+          Only the salon owner has permissions to manage global settings and configurations.
+        </p>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -329,8 +349,8 @@ export default function SettingsPage() {
                 <input
                   type="text"
                   placeholder="e.g. https://www.google.com/maps/embed?pb=..."
-                  value={mapUrl}
-                  onChange={(e) => setMapUrl(e.target.value)}
+                  value={googleMapsUrl}
+                  onChange={(e) => setGoogleMapsUrl(e.target.value)}
                   className={`${inputCls} pl-9`}
                 />
               </div>
@@ -340,7 +360,7 @@ export default function SettingsPage() {
             </div>
 
             {/* Live Google Maps Preview */}
-            {(mapUrl.trim() || address.trim()) && (
+            {(googleMapsUrl.trim() || address.trim()) && (
               <div className="rounded-xl overflow-hidden border border-ink/10 shadow-sm h-48">
                 <iframe
                   title="Location Preview"
@@ -350,26 +370,9 @@ export default function SettingsPage() {
                   loading="lazy"
                   referrerPolicy="no-referrer-when-downgrade"
                   src={(() => {
-                    const trimmed = mapUrl.trim();
-                    if (!trimmed) {
-                      return address.trim() ? `https://maps.google.com/maps?q=${encodeURIComponent(address)}&output=embed&z=15` : "";
-                    }
-                    if (trimmed.includes("src=\"")) {
-                      return trimmed.match(/src="([^"]+)"/)?.[1] || trimmed;
-                    }
-                    if (trimmed.includes("/maps/embed") || trimmed.includes("output=embed")) {
-                      return trimmed;
-                    }
-                    if (trimmed.includes("google.com/maps/place/")) {
-                      try {
-                        const parts = trimmed.split("/maps/place/");
-                        if (parts[1]) {
-                          const placeName = parts[1].split("/")[0].replace(/\+/g, " ");
-                          return `https://maps.google.com/maps?q=${encodeURIComponent(placeName)}&output=embed&z=15`;
-                        }
-                      } catch {}
-                    }
-                    return `https://maps.google.com/maps?q=${encodeURIComponent(trimmed)}&output=embed&z=15`;
+                    const embedUrl = getEmbeddableMapUrl(googleMapsUrl);
+                    if (embedUrl) return embedUrl;
+                    return address.trim() ? `https://maps.google.com/maps?q=${encodeURIComponent(address)}&output=embed&z=15` : "";
                   })()}
                 />
               </div>
@@ -384,7 +387,10 @@ export default function SettingsPage() {
                 Opening Hours
               </h3>
               <p className="text-[11px] text-mute-text mt-1">
-                Set when your shop is open. Clients see these hours on your public booking page.
+                Set when your shop is open. Clients see these hours on your public booking page and the calendar will only show slots within this window.
+              </p>
+              <p className="text-[10px] text-body-text mt-1 bg-canvas-soft px-3 py-1.5 rounded-lg border border-ink/5 font-semibold">
+                💡 Tip: Time inputs support any hour from <strong>00:00</strong> (midnight) to <strong>23:59</strong> — including early morning shifts from 6:00 AM or 24/7 operations.
               </p>
             </div>
 
@@ -443,14 +449,19 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          {/* ── Profile Picture Card ── */}
+          {/* ── Profile / Cover Photo Card ── */}
           <div className="bg-white border border-ink/10 rounded-2xl p-6 shadow-sm space-y-5">
-            <h3 className="text-sm font-black text-ink uppercase tracking-wider flex items-center gap-2">
-              <ImageIcon className="w-4 h-4 text-mute-text" />
-              Main Profile Image
-            </h3>
+            <div>
+              <h3 className="text-sm font-black text-ink uppercase tracking-wider flex items-center gap-2">
+                <ImageIcon className="w-4 h-4 text-mute-text" />
+                Salon Cover Photo
+              </h3>
+              <p className="text-[11px] text-mute-text mt-1">
+                This is the <strong>main image displayed on your salon&apos;s card</strong> in the public Trimly marketplace (the card customers see before clicking &ldquo;Explore&rdquo;). Use a high-quality landscape or square photo that represents your salon best.
+              </p>
+            </div>
             <div className="space-y-3">
-              <label className="block text-[10px] font-bold uppercase tracking-wider text-body-text">Profile Picture</label>
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-body-text">Cover Photo URL or Upload</label>
               <div className="flex gap-2">
                 <input
                   type="text"
@@ -481,21 +492,34 @@ export default function SettingsPage() {
                 </button>
               </div>
               {profilePicture && (
-                <div className="flex items-center gap-4 bg-canvas-soft/40 p-4 rounded-xl border border-ink/5">
-                  <div className="w-16 h-16 rounded-full overflow-hidden border border-ink/10 bg-canvas flex-shrink-0">
-                    <img
-                      src={profilePicture}
-                      alt="Profile preview"
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        (e.target as any).src = "https://images.unsplash.com/photo-1621605815971-fbc98d665033?auto=format&fit=crop&w=300&q=80";
-                      }}
-                    />
+                <div className="space-y-2">
+                  {/* Marketplace card preview */}
+                  <div className="border border-ink/10 rounded-xl overflow-hidden shadow-sm">
+                    <div className="relative h-28 overflow-hidden">
+                      <img
+                        src={profilePicture}
+                        alt="Cover photo preview"
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          (e.target as any).src = "https://images.unsplash.com/photo-1621605815971-fbc98d665033?auto=format&fit=crop&w=600&q=80";
+                        }}
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
+                      <div className="absolute bottom-3 left-3 right-3 flex items-end justify-between">
+                        <span className="text-[10px] font-bold bg-canvas/95 backdrop-blur-sm text-ink px-2 py-1 rounded-full border border-ink/5">Barbershop</span>
+                        <span className="text-[9px] font-bold bg-canvas/95 backdrop-blur-sm text-positive-deep px-2 py-1 rounded-full border border-ink/5">✓ Verified</span>
+                      </div>
+                    </div>
+                    <div className="p-3 bg-canvas">
+                      <h4 className="text-sm font-black text-ink">{shopName || "Your Salon Name"}</h4>
+                      <p className="text-[10px] text-mute-text mt-0.5 font-semibold">{city || state || "Your City"}</p>
+                      <div className="mt-2 flex items-center justify-between">
+                        <span className="text-[10px] text-mute-text font-bold">Instantly Bookable</span>
+                        <span className="text-[10px] font-bold bg-primary text-ink px-3 py-1 rounded-full">Explore →</span>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <h4 className="text-xs font-bold text-ink">Avatar Live Preview</h4>
-                    <p className="text-[10px] text-mute-text">Appears on card tiles and category landing views.</p>
-                  </div>
+                  <p className="text-[10px] text-mute-text font-semibold text-center">↑ Live marketplace card preview</p>
                 </div>
               )}
             </div>

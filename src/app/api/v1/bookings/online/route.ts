@@ -52,9 +52,12 @@ export async function POST(request: NextRequest) {
       startTime: start,
       endTime: end,
       status: "CONFIRMED",
-      paymentStatus: paymentOption === "ARRIVE" ? "PENDING" : "PENDING", // can keep PENDING or update accordingly
+      paymentStatus: "PENDING",
       paymentOption: paymentOption || "STRIPE",
       type: "ONLINE",
+      // Snapshot customer details so barber can see name + phone in dashboard
+      customerName: customer?.name || "Online Customer",
+      customerPhone: customer?.phone || "",
     });
 
     return NextResponse.json(

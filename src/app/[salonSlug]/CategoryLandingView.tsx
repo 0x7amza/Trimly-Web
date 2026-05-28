@@ -76,7 +76,7 @@ export default function CategoryLandingView({ categorySlug }: { categorySlug: st
       .then(res => {
         if (res.success) {
           // Build shop-like objects from search results
-          const mappedShops: Shop[] = res.data.results.map((item: { id: string; name: string; slug: string; profileImage?: string; images?: string[]; city?: string; address?: string }) => ({
+          const mappedShops: Shop[] = res.data.results.map((item: any) => ({
             id: item.id,
             ownerId: "",
             name: item.name,
@@ -86,6 +86,8 @@ export default function CategoryLandingView({ categorySlug }: { categorySlug: st
             images: item.images,
             city: item.city,
             address: item.address,
+            avgRating: item.avgRating,
+            totalReviews: item.totalReviews,
           }));
           setShops(mappedShops);
           setActiveCities(res.data.cities || []);
@@ -261,10 +263,16 @@ export default function CategoryLandingView({ categorySlug }: { categorySlug: st
                     <div className="w-8 h-8 rounded-full bg-canvas/95 backdrop-blur-sm flex items-center justify-center border border-ink/5 z-10 text-ink">
                       {React.createElement(CATEGORY_ICONS[categorySlug] || Scissors, { className: "w-4 h-4" })}
                     </div>
-                    <span className="badge-positive text-[9px] uppercase tracking-wider bg-canvas/95 backdrop-blur-sm text-positive-deep border border-ink/5 z-10 flex items-center gap-1">
-                      <Star className="w-2.5 h-2.5 fill-positive text-positive" />
-                      <span>4.9 Rated</span>
-                    </span>
+                    {shop.totalReviews && shop.totalReviews > 0 ? (
+                      <span className="badge-positive text-[9px] uppercase tracking-wider bg-canvas/95 backdrop-blur-sm text-positive-deep border border-ink/5 z-10 flex items-center gap-1">
+                        <Star className="w-2.5 h-2.5 fill-positive text-positive" />
+                        <span>{shop.avgRating?.toFixed(1)} ({shop.totalReviews} {shop.totalReviews === 1 ? "Review" : "Reviews"})</span>
+                      </span>
+                    ) : (
+                      <span className="text-[9px] uppercase tracking-wider bg-canvas/95 backdrop-blur-sm text-mute-text border border-ink/5 rounded-full px-2 py-0.5 z-10 flex items-center gap-1 font-bold">
+                        <span>No reviews yet</span>
+                      </span>
+                    )}
                   </div>
 
                   <div className="p-6 flex-grow flex flex-col justify-between space-y-4">
