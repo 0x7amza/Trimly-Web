@@ -5,7 +5,7 @@ import { api, Booking, Service } from "@/lib/api";
 import { useB2BAuth } from "@/components/providers";
 
 export default function CalendarPage() {
-  const { activeBarber } = useB2BAuth();
+  const { activeBarber, shop } = useB2BAuth();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [selectedDate, setSelectedDate] = useState<string>(() => {
@@ -58,11 +58,27 @@ export default function CalendarPage() {
     loadData();
   }, [activeBarber, selectedDate]);
 
-  // Generate 15-minute timeline slots from 09:00 to 18:00
+  const getSelectedBusinessHours = () => {
+    const hours = shop?.businessHours;
+    if (!hours || hours.length === 0) {
+      return { day: new Date(`${selectedDate}T00:00:00.000Z`).getUTCDay(), open: "09:00", close: "18:00", isClosed: false };
+    }
+
+    const day = new Date(`${selectedDate}T00:00:00.000Z`).getUTCDay();
+    return hours.find((h) => h.day === day) || { day, open: "09:00", close: "18:00", isClosed: false };
+  };
+
+  // Generate 15-minute timeline slots from shop opening hours.
   const generateTimeSlots = () => {
+    const businessHours = getSelectedBusinessHours();
+    if (businessHours.isClosed) return [];
+
     const slots = [];
-    const openTime = 9 * 60; // 09:00 in minutes
-    const closeTime = 18 * 60; // 18:00 in minutes
+    const [openHour, openMinute] = businessHours.open.split(":").map(Number);
+    const [closeHour, closeMinute] = businessHours.close.split(":").map(Number);
+    const openTime = openHour * 60 + openMinute;
+    const closeTime = closeHour * 60 + closeMinute;
+
     for (let min = openTime; min < closeTime; min += 15) {
       const hh = Math.floor(min / 60).toString().padStart(2, "0");
       const mm = (min % 60).toString().padStart(2, "0");
@@ -218,7 +234,12 @@ export default function CalendarPage() {
       ) : (
         /* Timeline Grid */
         <div className="bg-canvas rounded-wise shadow-sm border border-ink/5 overflow-hidden flex flex-col divide-y divide-ink/5">
-          {slots.map((timeStr) => {
+          {slots.length === 0 ? (
+            <div className="p-12 text-center">
+              <p className="text-sm font-bold text-ink">Closed on this date</p>
+              <p className="text-xs text-mute-text mt-1">Update opening hours in Settings to make slots available.</p>
+            </div>
+          ) : slots.map((timeStr) => {
             const booking = getBookingForSlot(timeStr);
             const isStart = booking ? isSlotStartOfBooking(timeStr, booking) : false;
             const isBlocked = booking?.notes?.startsWith("[BLOCKED]") || booking?.serviceSnapshot?.name === "Blocked Time";

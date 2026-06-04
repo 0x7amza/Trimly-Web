@@ -4,6 +4,8 @@ import { BookingModel } from "@/lib/models/Booking";
 import { ServiceModel } from "@/lib/models/Service";
 import { BarberModel } from "@/lib/models/Barber";
 import { ShopModel } from "@/lib/models/Shop";
+import { fail, handleRouteError } from "@/lib/api-response";
+import { isDateOnly, isObjectId } from "@/lib/validation";
 
 // GET /api/v1/bookings/barber/[clerkId]/availability?serviceId=...&date=YYYY-MM-DD
 export async function GET(
@@ -16,7 +18,10 @@ export async function GET(
   const dateStr = searchParams.get("date");
 
   if (!serviceId || !dateStr) {
-    return NextResponse.json({ success: false, error: "serviceId and date are required" }, { status: 400 });
+    return fail("BAD_REQUEST", "serviceId and date are required", 400);
+  }
+  if (!isObjectId(serviceId) || !isDateOnly(dateStr) || typeof clerkId !== "string") {
+    return fail("BAD_REQUEST", "Valid serviceId, barberId, and date are required", 400);
   }
 
   try {
@@ -25,10 +30,13 @@ export async function GET(
     // Fetch barber for shopId reference
     const barber = await BarberModel.findOne({ clerkId }).lean();
     if (!barber) {
-      return NextResponse.json({ success: false, error: "Barber not found" }, { status: 404 });
+      return fail("NOT_FOUND", "Barber not found", 404);
     }
 
     const service = await ServiceModel.findById(serviceId).lean();
+    if (!service || service.barberId !== clerkId) {
+      return fail("NOT_FOUND", "Service not found for this barber", 404);
+    }
     const durationMs = (service?.durationMinutes ?? 30) * 60 * 1000;
 
     // --- CRITICAL FIX: Read businessHours from the Shop document ---
@@ -97,7 +105,6 @@ export async function GET(
 
     return NextResponse.json({ success: true, data: slots });
   } catch (err) {
-    console.error("[availability]", err);
-    return NextResponse.json({ success: false, error: "Failed to compute availability" }, { status: 500 });
+    return handleRouteError("availability", err);
   }
 }

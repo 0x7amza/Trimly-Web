@@ -1,24 +1,30 @@
 import { NextResponse } from "next/server";
 import { requireOwner } from "@/lib/auth";
+import { fail } from "@/lib/api-response";
+import { isProduction, isStripeServerConfigured } from "@/lib/env";
 
 // POST /api/v1/shops/me/billing-portal
 export async function POST() {
   const result = await requireOwner();
   if ("error" in result) return result.error;
 
-  const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
-  if (!stripeSecretKey) {
+  if (!isStripeServerConfigured()) {
+    if (isProduction()) {
+      return fail("CONFIGURATION_ERROR", "Stripe is required for the billing portal in production.", 503);
+    }
+
     return NextResponse.json({
       success: true,
-      data: { portalUrl: "https://billing.stripe.com" },
+      data: { portalUrl: "/dashboard/billing?mock_portal=true" },
     });
   }
 
-  // When Stripe is configured:
-  // const stripe = new Stripe(stripeSecretKey);
-  // const session = await stripe.billingPortal.sessions.create({ customer: shop.subscription.stripeCustomerId, ... });
+  if (isProduction()) {
+    return fail("PAYMENT_UNAVAILABLE", "Stripe billing portal is not fully implemented yet.", 503);
+  }
+
   return NextResponse.json({
     success: true,
-    data: { portalUrl: "https://billing.stripe.com" },
+    data: { portalUrl: "/dashboard/billing?stripe_portal_todo=true" },
   });
 }

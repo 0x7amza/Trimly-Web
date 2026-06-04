@@ -88,7 +88,7 @@ export default function SettingsPage() {
         setGoogleMapsUrl(s.googleMapsUrl || s.mapUrl || "");
         setBusinessHours(s.businessHours && s.businessHours.length > 0 ? s.businessHours : DEFAULT_HOURS);
       }
-    } catch (err: any) {
+    } catch {
       setError("Failed to load shop settings.");
     } finally {
       setLoading(false);
@@ -106,8 +106,8 @@ export default function SettingsPage() {
       const compressed = await compressImage(file);
       const res = await api.upload(compressed);
       if (res.success) setProfilePicture(res.data.url);
-    } catch (err: any) {
-      setError(err.message || "File upload failed.");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "File upload failed.");
     } finally {
       setUploading(false);
     }
@@ -120,8 +120,8 @@ export default function SettingsPage() {
       const compressed = await compressImage(file);
       const res = await api.upload(compressed);
       if (res.success) setGalleryPictures((prev) => [...prev, res.data.url]);
-    } catch (err: any) {
-      setError(err.message || "File upload failed.");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "File upload failed.");
     } finally {
       setUploading(false);
     }
@@ -144,7 +144,7 @@ export default function SettingsPage() {
   };
 
   // Opening Hours helpers
-  const updateHour = (day: number, field: keyof BusinessHours, value: any) => {
+  const updateHour = (day: number, field: keyof BusinessHours, value: string | boolean) => {
     setBusinessHours((prev) =>
       prev.map((h) => (h.day === day ? { ...h, [field]: value } : h))
     );
@@ -182,8 +182,8 @@ export default function SettingsPage() {
         setShop(res.data);
         setTimeout(() => setSuccess(false), 3500);
       }
-    } catch (err: any) {
-      setError(err.message || "Failed to save settings.");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to save settings.");
     } finally {
       setSaving(false);
     }

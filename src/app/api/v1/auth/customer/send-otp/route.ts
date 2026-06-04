@@ -1,25 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import { CustomerModel } from "@/lib/models/Customer";
+import { fail, handleRouteError, okMessage } from "@/lib/api-response";
+import { rateLimit } from "@/lib/rate-limit";
+import { isE164Phone } from "@/lib/validation";
 
 // Generates a 6-digit OTP and saves it (expires in 10 minutes)
 // Sends via Twilio SMS if configured, or returns sandbox OTP in dev mode
 export async function POST(request: NextRequest) {
+  const limited = rateLimit(request, "auth:send-otp", { limit: 5, windowMs: 10 * 60 * 1000 });
+  if (limited) return limited;
+
   try {
     const { phone } = await request.json();
     if (!phone) {
-      return NextResponse.json({ success: false, error: "Phone number required" }, { status: 400 });
+      return fail("BAD_REQUEST", "Phone number required", 400);
     }
 
     const cleanPhone = phone.trim();
 
     // Enforce strict E.164 international format: +[country code][number], 7–15 digits total
-    const phoneRegex = /^\+[1-9]\d{6,14}$/;
-    if (!phoneRegex.test(cleanPhone)) {
-      return NextResponse.json(
-        { success: false, error: "Please enter a valid phone number in international format (e.g. +447911123456)" },
-        { status: 400 }
-      );
+    if (!isE164Phone(cleanPhone)) {
+      return fail("BAD_REQUEST", "Please enter a valid phone number in international format (e.g. +447911123456)", 400);
     }
 
     await connectDB();
@@ -60,13 +62,10 @@ export async function POST(request: NextRequest) {
       if (!twilioRes.ok) {
         const errText = await twilioRes.text();
         console.error("Twilio SMS send failed:", errText);
-        return NextResponse.json(
-          { success: false, error: "Failed to dispatch verification SMS. Please try again." },
-          { status: 502 }
-        );
+        return fail("INTERNAL_ERROR", "Failed to dispatch verification SMS. Please try again.", 502);
       }
 
-      return NextResponse.json({ success: true, message: "OTP sent successfully" });
+      return okMessage("OTP sent successfully");
     } else {
       // Sandbox/Development: Log OTP and return it in response for easy testing
       console.log(`[OTP Sandbox] Phone: ${cleanPhone} | Code: ${otp}`);
@@ -78,7 +77,6 @@ export async function POST(request: NextRequest) {
       });
     }
   } catch (err) {
-    console.error("[send-otp]", err);
-    return NextResponse.json({ success: false, error: "Failed to send OTP. Please try again." }, { status: 500 });
+    return handleRouteError("send-otp", err);
   }
 }

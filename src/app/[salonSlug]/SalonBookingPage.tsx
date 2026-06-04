@@ -47,13 +47,13 @@ const DEFAULT_BUSINESS_HOURS = [
   { day: 0, open: "09:00", close: "17:00", isClosed: true },
 ];
 
-// Reusable Leaflet/OpenStreetMap Frame layout
-function MockMap({ address, mapUrl }: { address: string; mapUrl?: string }) {
+// Location map component — Google Maps embed or Leaflet/OSM fallback
+function LocationMap({ address, mapUrl }: { address: string; mapUrl?: string }) {
   const embedUrl = mapUrl ? getEmbeddableMapUrl(mapUrl) : "";
 
   if (embedUrl) {
     return (
-      <div className="relative h-48 w-full rounded-2xl overflow-hidden border border-ink/10 shadow-sm bg-canvas-soft">
+      <div className="relative h-52 sm:h-60 w-full rounded-2xl overflow-hidden border border-ink/10 shadow-sm bg-canvas-soft">
         <iframe
           title="Interactive Google Map"
           width="100%"
@@ -1205,7 +1205,13 @@ export default function SalonBookingPage({
                   </a>
                 )}
               </div>
-              <MockMap address={address} mapUrl={shop?.googleMapsUrl || shop?.mapUrl} />
+              <LocationMap address={address} mapUrl={shop?.googleMapsUrl || shop?.mapUrl} />
+              {address && (
+                <div className="flex items-start gap-2 pt-1">
+                  <MapPin className="w-3.5 h-3.5 text-mute-text mt-0.5 flex-shrink-0" />
+                  <p className="text-xs text-body-text font-semibold leading-snug">{address}</p>
+                </div>
+              )}
             </div>
 
             {/* Opening Hours Table — reads from shop.businessHours saved in dashboard */}

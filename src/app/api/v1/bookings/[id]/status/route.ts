@@ -1,7 +1,9 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { connectDB } from "@/lib/db";
 import { BookingModel } from "@/lib/models/Booking";
 import { requireBarber } from "@/lib/auth";
+import { fail, handleRouteError, ok } from "@/lib/api-response";
+import { isObjectId } from "@/lib/validation";
 
 // PATCH /api/v1/bookings/[id]/status
 export async function PATCH(
@@ -9,6 +11,10 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+  if (!isObjectId(id)) {
+    return fail("BAD_REQUEST", "Invalid booking id", 400);
+  }
+
   const result = await requireBarber();
   if ("error" in result) return result.error;
 
@@ -16,24 +22,22 @@ export async function PATCH(
     const { status } = await request.json();
     const validStatuses = ["PENDING", "CONFIRMED", "CANCELLED", "COMPLETED"];
     if (!validStatuses.includes(status)) {
-      return NextResponse.json({ success: false, error: "Invalid status" }, { status: 400 });
+      return fail("BAD_REQUEST", "Invalid status", 400);
     }
 
     await connectDB();
     const booking = await BookingModel.findById(id);
     if (!booking) {
-      return NextResponse.json({ success: false, error: "Booking not found" }, { status: 404 });
+      return fail("NOT_FOUND", "Booking not found", 404);
     }
     if (booking.barberId !== result.clerkId) {
-      return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
+      return fail("FORBIDDEN", "Forbidden", 403);
     }
 
     booking.status = status;
     await booking.save();
 
-    return NextResponse.json({
-      success: true,
-      data: {
+    return ok({
         id: booking._id.toString(),
         barberId: booking.barberId,
         serviceSnapshot: booking.serviceSnapshot,
@@ -43,10 +47,8 @@ export async function PATCH(
         paymentStatus: booking.paymentStatus,
         type: booking.type,
         notes: booking.notes,
-      },
     });
   } catch (err) {
-    console.error("[bookings/id/status]", err);
-    return NextResponse.json({ success: false, error: "Status update failed" }, { status: 500 });
+    return handleRouteError("bookings/id/status", err);
   }
 }

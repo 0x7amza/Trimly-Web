@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useUser } from "@clerk/nextjs";
+import { useSearchParams } from "next/navigation";
 import { CustomCombobox } from "@/components/ui/custom-combobox";
 import { 
   Star, 
@@ -61,6 +62,7 @@ const CATEGORY_INFO: Record<string, {
 
 export default function CategoryLandingView({ categorySlug }: { categorySlug: string }) {
   const { isSignedIn } = useUser();
+  const searchParams = useSearchParams();
   const [selectedLocation, setSelectedLocation] = useState<string>("All");
   const [activeCities, setActiveCities] = useState<string[]>([]);
   const [shops, setShops] = useState<Shop[]>([]);
@@ -68,6 +70,11 @@ export default function CategoryLandingView({ categorySlug }: { categorySlug: st
   const [services, setServices] = useState<Service[]>([]);
 
   const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const city = searchParams.get("city");
+    if (city) setSelectedLocation(city);
+  }, [searchParams]);
 
   useEffect(() => {
     setIsLoading(true);

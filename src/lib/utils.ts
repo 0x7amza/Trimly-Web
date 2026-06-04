@@ -57,7 +57,7 @@ export function getEmbeddableMapUrl(url: string | undefined | null): string {
       if (q) {
         return `https://maps.google.com/maps?q=${encodeURIComponent(q)}&output=embed`;
       }
-    } catch (_) {}
+    } catch {}
     
     if (cleanUrl.includes("google.com/maps")) {
       const separator = cleanUrl.includes("?") ? "&" : "?";

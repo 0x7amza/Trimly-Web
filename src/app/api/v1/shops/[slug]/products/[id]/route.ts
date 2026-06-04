@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import mongoose from "mongoose";
 import { connectDB } from "@/lib/db";
-import { ProductModel } from "@/lib/models/Product";
+import { ProductModel, IProduct } from "@/lib/models/Product";
 import { ShopModel } from "@/lib/models/Shop";
 import { requireBarber } from "@/lib/auth";
 
-// Helper to serialize product
-function serializeProduct(prod: any) {
+function serializeProduct(prod: IProduct & { _id: mongoose.Types.ObjectId }) {
   return {
     id: prod._id.toString(),
     shopId: prod.shopId.toString(),
@@ -32,7 +31,7 @@ export async function PUT(
   try {
     await connectDB();
 
-    const queryConditions: any[] = [{ slug }];
+    const queryConditions: Array<{ slug?: string; _id?: string }> = [{ slug }];
     if (mongoose.Types.ObjectId.isValid(slug)) {
       queryConditions.push({ _id: slug });
     }
@@ -125,7 +124,7 @@ export async function DELETE(
   try {
     await connectDB();
 
-    const queryConditions: any[] = [{ slug }];
+    const queryConditions: Array<{ slug?: string; _id?: string }> = [{ slug }];
     if (mongoose.Types.ObjectId.isValid(slug)) {
       queryConditions.push({ _id: slug });
     }

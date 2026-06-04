@@ -4,7 +4,17 @@ import { ProductModel } from "@/lib/models/Product";
 import { requireBarber } from "@/lib/auth";
 
 // Helper to serialize product
-function serializeProduct(prod: any) {
+interface ProductDoc {
+  _id: { toString(): string };
+  shopId: { toString(): string };
+  name: string;
+  description: string;
+  price: number;
+  imageUrl?: string;
+  isActive: boolean;
+}
+
+function serializeProduct(prod: ProductDoc) {
   return {
     id: prod._id.toString(),
     shopId: prod.shopId.toString(),
@@ -23,7 +33,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const shopId = searchParams.get("shopId");
 
-    const query: any = {};
+    const query: Record<string, unknown> = {};
     if (shopId) {
       query.shopId = shopId;
     } else {

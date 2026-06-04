@@ -12,6 +12,7 @@ import type {
   Booking,
   Product
 } from "@/types/api";
+import { getClientErrorMessage } from "@/lib/api-error";
 
 export type {
   BusinessHours,
@@ -50,7 +51,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
       try {
         token = await clerk.session.getToken();
       } catch (err) {
-        console.error("Failed to retrieve Clerk token:", err);
+        console.error("[api] Failed to retrieve Clerk token:", err);
       }
     }
   }
@@ -66,12 +67,45 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const baseUrl = typeof window === "undefined"
     ? (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000")
     : "";
-  const response = await fetch(`${baseUrl}/api/v1${path}`, { ...options, headers });
+
+  const method = options.method ?? "GET";
+  const url = `${baseUrl}/api/v1${path}`;
+
+  const response = await fetch(url, { ...options, headers });
+
+  // Guard: if backend returned HTML (e.g. Next.js 500 page) instead of JSON,
+  // surface a clean error rather than a JSON parse crash.
+  const contentType = response.headers.get("content-type") ?? "";
+  if (!contentType.includes("application/json")) {
+    const text = await response.text();
+    const safePreview = text.slice(0, 120).replace(/\s+/g, " ");
+
+    if (process.env.NODE_ENV !== "production") {
+      console.error(
+        `[api] Non-JSON response from ${method} ${path}\n` +
+        `  Status: ${response.status}\n` +
+        `  Body preview: ${safePreview}`
+      );
+    }
+    throw new Error(`Server error (${response.status}). The server returned a non-JSON response.`);
+  }
+
   const data = await response.json();
 
   if (!response.ok) {
-    throw new Error(data.error || "API Request Failed");
+    const message = getClientErrorMessage(data);
+
+    if (process.env.NODE_ENV !== "production") {
+      console.error(
+        `[api] Request failed: ${method} ${path}\n` +
+        `  Status: ${response.status}\n` +
+        `  Error: ${message}`
+      );
+    }
+
+    throw new Error(message);
   }
+
   return data;
 }
 
@@ -183,7 +217,7 @@ export const api = {
         `/bookings/barber/${clerkId}/availability?serviceId=${serviceId}&date=${dateStr}`
       ),
 
-    createOnline: (payload: { barberId: string; serviceId: string; startTime: string; paymentOption?: "ARRIVE" | "STRIPE" }) =>
+    createOnline: (payload: { barberId: string; serviceId: string; startTime: string; paymentOption?: "ARRIVE" | "STRIPE"; notes?: string }) =>
       request<{ success: boolean; data: { booking: Booking; clientSecret: string | null } }>("/bookings/online", {
         method: "POST",
         body: JSON.stringify(payload),

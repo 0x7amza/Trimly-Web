@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import { ShopModel } from "@/lib/models/Shop";
 import { ReviewModel } from "@/lib/models/Review";
+import { fail, handleRouteError } from "@/lib/api-response";
+import { rateLimit } from "@/lib/rate-limit";
+import { isSlug, sanitizeString } from "@/lib/validation";
 
 // GET /api/v1/shops/[slug]/reviews — fetch all reviews for a shop by slug
 export async function GET(
@@ -9,12 +12,15 @@ export async function GET(
   { params }: { params: Promise<{ slug: string }> }
 ) {
   const { slug } = await params;
+  if (!isSlug(slug)) {
+    return fail("BAD_REQUEST", "Invalid shop slug", 400);
+  }
 
   try {
     await connectDB();
     const shop = await ShopModel.findOne({ slug }).lean();
     if (!shop) {
-      return NextResponse.json({ success: false, error: "Shop not found" }, { status: 404 });
+      return fail("NOT_FOUND", "Shop not found", 404);
     }
 
     const reviews = await ReviewModel.find({ shopId: shop._id })
@@ -32,8 +38,7 @@ export async function GET(
       })),
     });
   } catch (err) {
-    console.error("[reviews GET]", err);
-    return NextResponse.json({ success: false, error: "Failed to fetch reviews" }, { status: 500 });
+    return handleRouteError("reviews GET", err);
   }
 }
 
@@ -43,25 +48,34 @@ export async function POST(
   { params }: { params: Promise<{ slug: string }> }
 ) {
   const { slug } = await params;
+  const limited = rateLimit(request, "reviews:create", { limit: 5, windowMs: 10 * 60 * 1000, identity: slug });
+  if (limited) return limited;
+
+  if (!isSlug(slug)) {
+    return fail("BAD_REQUEST", "Invalid shop slug", 400);
+  }
 
   try {
     const { customerName, rating, comment } = await request.json();
+    const cleanName = sanitizeString(customerName, 120);
+    const cleanComment = sanitizeString(comment, 1000);
+    const numericRating = Number(rating);
     
-    if (!customerName || !rating) {
-      return NextResponse.json({ success: false, error: "Name and rating required" }, { status: 400 });
+    if (!cleanName || !Number.isInteger(numericRating) || numericRating < 1 || numericRating > 5) {
+      return fail("BAD_REQUEST", "Name and rating from 1 to 5 are required", 400);
     }
 
     await connectDB();
     const shop = await ShopModel.findOne({ slug });
     if (!shop) {
-      return NextResponse.json({ success: false, error: "Shop not found" }, { status: 404 });
+      return fail("NOT_FOUND", "Shop not found", 404);
     }
 
     const review = await ReviewModel.create({
       shopId: shop._id,
-      customerName,
-      rating: Number(rating),
-      comment: comment || "",
+      customerName: cleanName,
+      rating: numericRating,
+      comment: cleanComment,
     });
 
     return NextResponse.json({
@@ -75,7 +89,6 @@ export async function POST(
       },
     });
   } catch (err) {
-    console.error("[reviews POST]", err);
-    return NextResponse.json({ success: false, error: "Failed to save review" }, { status: 500 });
+    return handleRouteError("reviews POST", err);
   }
 }

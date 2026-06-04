@@ -3,10 +3,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { SignJWT, jwtVerify } from "jose";
 import { connectDB } from "./db";
 import { BarberModel } from "./models/Barber";
+import { getCustomerJwtSecret } from "./env";
+import { fail } from "./api-response";
 
-const CUSTOMER_JWT_SECRET = new TextEncoder().encode(
-  process.env.CUSTOMER_JWT_SECRET || "fallback-secret"
-);
+function getCustomerJwtSecretKey() {
+  return new TextEncoder().encode(getCustomerJwtSecret());
+}
 
 // ──────────────────────────────────────────────
 // B2B: Clerk Auth helpers
@@ -19,10 +21,7 @@ const CUSTOMER_JWT_SECRET = new TextEncoder().encode(
 export async function requireClerkAuth(): Promise<string | NextResponse> {
   const { userId } = await auth();
   if (!userId) {
-    return NextResponse.json(
-      { success: false, error: "Unauthorized. Clerk authentication required." },
-      { status: 401 }
-    );
+    return fail("UNAUTHORIZED", "Unauthorized. Clerk authentication required.", 401);
   }
   return userId;
 }
@@ -40,7 +39,7 @@ export async function requireBarber() {
   if (!barber) {
     return {
       error: NextResponse.json(
-        { success: false, error: "Barber profile not found. Please sync first." },
+        { success: false, error: { code: "NOT_FOUND", message: "Barber profile not found. Please sync first." } },
         { status: 404 }
       ),
     };
@@ -58,7 +57,7 @@ export async function requireOwner() {
   if (result.barber.role !== "OWNER") {
     return {
       error: NextResponse.json(
-        { success: false, error: "Forbidden. Only shop owners can perform this action." },
+        { success: false, error: { code: "FORBIDDEN", message: "Forbidden. Only shop owners can perform this action." } },
         { status: 403 }
       ),
     };
@@ -75,7 +74,7 @@ export async function signCustomerToken(customerId: string): Promise<string> {
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime("30d")
-    .sign(CUSTOMER_JWT_SECRET);
+    .sign(getCustomerJwtSecretKey());
 }
 
 export async function verifyCustomerToken(request: NextRequest): Promise<string | NextResponse> {
@@ -83,19 +82,13 @@ export async function verifyCustomerToken(request: NextRequest): Promise<string 
   const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
 
   if (!token) {
-    return NextResponse.json(
-      { success: false, error: "Unauthorized. Customer token missing." },
-      { status: 401 }
-    );
+    return fail("UNAUTHORIZED", "Unauthorized. Customer token missing.", 401);
   }
 
   try {
-    const { payload } = await jwtVerify(token, CUSTOMER_JWT_SECRET);
+    const { payload } = await jwtVerify(token, getCustomerJwtSecretKey());
     return payload.sub as string;
   } catch {
-    return NextResponse.json(
-      { success: false, error: "Unauthorized. Invalid or expired token." },
-      { status: 401 }
-    );
+    return fail("UNAUTHORIZED", "Unauthorized. Invalid or expired token.", 401);
   }
 }

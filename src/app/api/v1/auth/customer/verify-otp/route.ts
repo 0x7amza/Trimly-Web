@@ -1,38 +1,38 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { connectDB } from "@/lib/db";
 import { CustomerModel } from "@/lib/models/Customer";
 import { signCustomerToken } from "@/lib/auth";
+import { fail, handleRouteError, ok } from "@/lib/api-response";
+import { rateLimit } from "@/lib/rate-limit";
+import { isE164Phone } from "@/lib/validation";
 
 export async function POST(request: NextRequest) {
+  const limited = rateLimit(request, "auth:verify-otp", { limit: 8, windowMs: 10 * 60 * 1000 });
+  if (limited) return limited;
+
   try {
     const { phone, code } = await request.json();
     if (!phone || !code) {
-      return NextResponse.json({ success: false, error: "Phone and code required" }, { status: 400 });
+      return fail("BAD_REQUEST", "Phone and code required", 400);
+    }
+    if (!isE164Phone(phone) || typeof code !== "string" || !/^\d{6}$/.test(code)) {
+      return fail("BAD_REQUEST", "Valid phone and 6-digit code are required", 400);
     }
 
     await connectDB();
     const customer = await CustomerModel.findOne({ phone });
 
     if (!customer) {
-      return NextResponse.json(
-        { success: false, error: "No account found for this number. Please request a new code." },
-        { status: 400 }
-      );
+      return fail("BAD_REQUEST", "No account found for this number. Please request a new code.", 400);
     }
 
     // Check expiry first to give a more useful error
     if (!customer.otpExpiresAt || customer.otpExpiresAt < new Date()) {
-      return NextResponse.json(
-        { success: false, error: "Your code has expired. Please request a new one." },
-        { status: 400 }
-      );
+      return fail("BAD_REQUEST", "Your code has expired. Please request a new one.", 400);
     }
 
     if (customer.otp !== code) {
-      return NextResponse.json(
-        { success: false, error: "Incorrect verification code. Please check and try again." },
-        { status: 400 }
-      );
+      return fail("BAD_REQUEST", "Incorrect verification code. Please check and try again.", 400);
     }
 
     // Clear OTP after successful verification
@@ -44,9 +44,7 @@ export async function POST(request: NextRequest) {
 
     const token = await signCustomerToken(customer._id.toString());
 
-    return NextResponse.json({
-      success: true,
-      data: {
+    return ok({
         customer: {
           id: customer._id.toString(),
           phone: customer.phone,
@@ -55,10 +53,8 @@ export async function POST(request: NextRequest) {
         },
         token,
         isNew,
-      },
     });
   } catch (err) {
-    console.error("[verify-otp]", err);
-    return NextResponse.json({ success: false, error: "Verification failed. Please try again." }, { status: 500 });
+    return handleRouteError("verify-otp", err);
   }
 }

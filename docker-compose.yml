@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:latest
+    container_name: trimly-mongodb
+    ports:
+      - '27017:27017'
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=trimly_admin
+      - MONGO_INITDB_ROOT_PASSWORD=trimly_secret_2024
+    volumes:
+      - trimly_mongodb_data:/data/db
+    restart: unless-stopped
+
+volumes:
+  trimly_mongodb_data:
+    driver: local

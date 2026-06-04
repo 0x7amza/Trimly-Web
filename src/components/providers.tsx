@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { useUser } from "@clerk/nextjs";
 import { api, Barber, Shop } from "@/lib/api";
 
@@ -10,6 +10,10 @@ interface B2BAuthContextType {
   allBarbers: Barber[];
   role: "OWNER" | "BARBER";
   isLoading: boolean;
+  /** Non-null when the initial sync failed — safe to display to the user */
+  syncError: string | null;
+  /** Call to retry after a sync error */
+  retrySync: () => void;
   refreshShopData: () => Promise<void>;
 }
 
@@ -22,37 +26,43 @@ export function B2BProviders({ children }: { children: React.ReactNode }) {
   const [allBarbers, setAllBarbers] = useState<Barber[]>([]);
   const [role, setRole] = useState<"OWNER" | "BARBER">("OWNER");
   const [isLoading, setIsLoading] = useState(true);
+  const [syncError, setSyncError] = useState<string | null>(null);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     if (!isClerkLoaded || !user) return;
-    setIsLoading(true);
-    try {
-      // Always use real Clerk identity
-      const clerkEmail = user.primaryEmailAddress?.emailAddress ?? "";
-      const clerkName = user.fullName || user.username || "Authenticated User";
 
+    setIsLoading(true);
+    setSyncError(null);
+
+    try {
+      // Always use real Clerk identity — never fabricate or cache these values
+      const clerkEmail = user.primaryEmailAddress?.emailAddress ?? "";
+      const clerkName  = user.fullName || user.username || "Authenticated User";
+
+      // Read pending invite from localStorage (set by /for-professionals page)
       let inviteShopId: string | undefined = undefined;
       if (typeof window !== "undefined") {
         const stored = localStorage.getItem("inviteShopId");
-        if (stored) inviteShopId = stored;
+        if (stored && stored.trim()) inviteShopId = stored.trim();
       }
 
       // Sync with backend — creates or updates the barber record
       const syncRes = await api.barbers.sync({
-        name: clerkName,
-        email: clerkEmail,
-        shopId: inviteShopId,
+        name:   clerkName,
+        email:  clerkEmail,
+        ...(inviteShopId ? { shopId: inviteShopId } : {}),
       });
 
       if (syncRes.success) {
         setActiveBarber(syncRes.data);
         setRole(syncRes.data.role);
+        // Only clear the invite token after a confirmed successful sync
         if (typeof window !== "undefined") {
           localStorage.removeItem("inviteShopId");
         }
       }
 
-      // Try to load shop data
+      // Try to load shop data — failing here is not fatal (new user has no shop yet)
       try {
         const shopRes = await api.shops.getMe();
         if (shopRes.success) {
@@ -60,25 +70,38 @@ export function B2BProviders({ children }: { children: React.ReactNode }) {
           setAllBarbers(shopRes.data.barbers);
         }
       } catch {
-        // New user — no shop yet, that's fine
+        // New user — no shop yet. This is expected and not an error state.
         setShop(null);
         setAllBarbers([]);
       }
     } catch (err) {
-      console.error("Error loading B2B auth data:", err);
+      const message =
+        err instanceof Error
+          ? err.message
+          : "An unexpected error occurred while loading your workspace.";
+      console.error("[B2BProviders] Sync error:", err);
+      setSyncError(message);
+      // Do NOT set activeBarber or shop — preserve null state so the UI can
+      // show a proper error rather than an empty/broken dashboard.
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [isClerkLoaded, user]);
 
   useEffect(() => {
     if (isClerkLoaded && user) {
-      loadData();
+      void loadData(); // eslint-disable-line react-hooks/set-state-in-effect
     } else if (isClerkLoaded && !user) {
       setIsLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isClerkLoaded, user?.id]);
+
+  const retrySync = useCallback(() => {
+    if (isClerkLoaded && user) {
+      loadData();
+    }
+  }, [isClerkLoaded, user, loadData]);
 
   const refreshShopData = async () => {
     try {
@@ -88,7 +111,7 @@ export function B2BProviders({ children }: { children: React.ReactNode }) {
         setAllBarbers(shopRes.data.barbers);
       }
     } catch {
-      // ignore
+      // ignore — shop fetch failure should not crash the dashboard
     }
   };
 
@@ -100,6 +123,8 @@ export function B2BProviders({ children }: { children: React.ReactNode }) {
         allBarbers,
         role,
         isLoading: isLoading || !isClerkLoaded,
+        syncError,
+        retrySync,
         refreshShopData,
       }}
     >

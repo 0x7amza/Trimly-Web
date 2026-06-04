@@ -8,15 +8,19 @@ import { useUser, UserButton, SignIn } from "@clerk/nextjs";
 import { api } from "@/lib/api";
 import { CustomCombobox } from "@/components/ui/custom-combobox";
 import { COUNTRY_OPTIONS, COUNTRIES } from "@/lib/locations";
-import { 
-  Calendar, 
-  Scissors, 
-  TrendingUp, 
-  Users, 
-  CreditCard, 
+import {
+  Calendar,
+  Scissors,
+  TrendingUp,
+  Users,
+  CreditCard,
   Settings as SettingsIcon,
   Home,
-  ShoppingBag
+  ShoppingBag,
+  Menu,
+  X,
+  RefreshCw,
+  AlertTriangle,
 } from "lucide-react";
 
 function CreateShopOnboarding() {
@@ -35,8 +39,8 @@ function CreateShopOnboarding() {
     try {
       await api.shops.create(shopName.trim(), country, state);
       await refreshShopData();
-    } catch (err: any) {
-      setError(err.message || "An unexpected error occurred");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "An unexpected error occurred");
     } finally {
       setLoading(false);
     }
@@ -46,14 +50,14 @@ function CreateShopOnboarding() {
   const stateOptions = availableStates.map((s) => ({ value: s, label: s }));
 
   return (
-    <div className="flex-grow flex items-center justify-center p-8 min-h-[calc(100vh-12rem)]">
-      <div className="max-w-md w-full bg-canvas border border-ink/5 text-center shadow-xl p-8 rounded-wise flex flex-col items-center">
+    <div className="flex-grow flex items-center justify-center p-4 sm:p-8 min-h-[calc(100vh-12rem)]">
+      <div className="max-w-md w-full bg-canvas border border-ink/5 text-center shadow-xl p-6 sm:p-8 rounded-wise flex flex-col items-center">
         <div className="w-16 h-16 bg-primary-pale text-ink rounded-full flex items-center justify-center mb-6 border border-primary/20">
           <Scissors className="w-8 h-8 text-primary" />
         </div>
         <h3 className="text-2xl font-black text-ink mb-2">Setup Your Barbershop</h3>
         <p className="text-sm text-body-text mb-6">
-          Welcome to Trimly! Let's create your profile so clients can find and book you.
+          Welcome to Trimly! Let&apos;s create your profile so clients can find and book you.
         </p>
 
         {error && (
@@ -70,7 +74,7 @@ function CreateShopOnboarding() {
             </label>
             <input
               type="text"
-              placeholder="e.g. Gentlemen's Barber Club"
+              placeholder="e.g. Gentlemen&apos;s Barber Club"
               value={shopName}
               onChange={(e) => setShopName(e.target.value)}
               className="w-full bg-canvas-soft border border-ink/10 rounded-xl py-3 px-4 text-sm font-bold text-ink placeholder:text-mute-text/40 focus:outline-none focus:border-ink transition-colors shadow-sm"
@@ -129,14 +133,14 @@ function BarberPendingScreen() {
   const { user } = useUser();
 
   return (
-    <div className="flex-grow flex items-center justify-center p-8 min-h-[calc(100vh-12rem)]">
-      <div className="max-w-md w-full bg-canvas border border-ink/5 text-center shadow-xl p-8 rounded-wise flex flex-col items-center">
+    <div className="flex-grow flex items-center justify-center p-4 sm:p-8 min-h-[calc(100vh-12rem)]">
+      <div className="max-w-md w-full bg-canvas border border-ink/5 text-center shadow-xl p-6 sm:p-8 rounded-wise flex flex-col items-center">
         <div className="w-16 h-16 bg-amber-50 text-amber-700 rounded-full flex items-center justify-center mb-6 border border-amber-200">
           <Users className="w-8 h-8 text-amber-700" />
         </div>
         <h3 className="text-2xl font-black text-ink mb-2">Pending Invitation</h3>
         <p className="text-sm text-body-text mb-6 leading-relaxed">
-          Hello <strong>{user?.fullName || "there"}</strong>. Your account is not currently linked to any barbershop or salon. 
+          Hello <strong>{user?.fullName || "there"}</strong>. Your account is not currently linked to any barbershop or salon.{" "}
           Please contact the shop owner and ask them to add your email (<strong>{user?.primaryEmailAddress?.emailAddress}</strong>) to their staff.
         </p>
         <div className="bg-canvas-soft border border-ink/5 p-3.5 rounded-xl text-xs font-bold text-mute-text w-full">
@@ -147,11 +151,49 @@ function BarberPendingScreen() {
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────
+// SyncErrorScreen — shown when /api/v1/barbers/sync fails
+// ─────────────────────────────────────────────────────────────────────
+function SyncErrorScreen({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <div className="flex-grow flex items-center justify-center p-4 sm:p-8 min-h-[calc(100vh-12rem)]">
+      <div className="max-w-md w-full bg-canvas border border-red-100 text-center shadow-xl p-6 sm:p-8 rounded-wise flex flex-col items-center">
+        <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mb-6 border border-red-100">
+          <AlertTriangle className="w-8 h-8 text-red-500" />
+        </div>
+        <h3 className="text-2xl font-black text-ink mb-2">Workspace Sync Failed</h3>
+        <p className="text-sm text-body-text mb-2 leading-relaxed">
+          We could not connect your account to our database. This is usually a temporary issue.
+        </p>
+        <p className="text-xs font-mono bg-red-50 text-red-700 border border-red-100 px-3 py-2 rounded-lg mb-6 w-full text-left break-words">
+          {message}
+        </p>
+        <div className="flex flex-col gap-3 w-full">
+          <button
+            onClick={onRetry}
+            className="button-primary w-full flex items-center justify-center gap-2"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Try Again
+          </button>
+          <Link href="/" className="button-secondary text-sm text-center py-3">
+            Back to Homepage
+          </Link>
+        </div>
+        <p className="text-[11px] text-mute-text mt-4">
+          If this persists, check your network connection or contact support.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { activeBarber, shop, role } = useB2BAuth();
+  const { activeBarber, shop, role, syncError, retrySync } = useB2BAuth();
   const { user } = useUser();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Real email always comes from the logged-in Clerk user
   const displayEmail = user?.primaryEmailAddress?.emailAddress ?? activeBarber?.email ?? "";
@@ -163,13 +205,13 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
 
   // Nav items based on role
   const navItems = [
-    { label: "Calendar", path: "/dashboard/calendar", icon: Calendar, roles: ["OWNER", "BARBER"] },
-    { label: "Services", path: "/dashboard/services", icon: Scissors, roles: ["OWNER", "BARBER"] },
-    { label: "Products", path: "/dashboard/products", icon: ShoppingBag, roles: ["OWNER", "BARBER"] },
-    { label: "Analytics", path: "/dashboard/analytics", icon: TrendingUp, roles: ["OWNER", "BARBER"] },
-    { label: "Staff", path: "/dashboard/staff", icon: Users, roles: ["OWNER"] },
-    { label: "Billing", path: "/dashboard/billing", icon: CreditCard, roles: ["OWNER"] },
-    { label: "Settings", path: "/dashboard/settings", icon: SettingsIcon, roles: ["OWNER"] },
+    { label: "Calendar",  path: "/dashboard/calendar",  icon: Calendar,     roles: ["OWNER", "BARBER"] },
+    { label: "Services",  path: "/dashboard/services",  icon: Scissors,     roles: ["OWNER", "BARBER"] },
+    { label: "Products",  path: "/dashboard/products",  icon: ShoppingBag,  roles: ["OWNER", "BARBER"] },
+    { label: "Analytics", path: "/dashboard/analytics", icon: TrendingUp,   roles: ["OWNER", "BARBER"] },
+    { label: "Staff",     path: "/dashboard/staff",     icon: Users,        roles: ["OWNER"] },
+    { label: "Billing",   path: "/dashboard/billing",   icon: CreditCard,   roles: ["OWNER"] },
+    { label: "Settings",  path: "/dashboard/settings",  icon: SettingsIcon, roles: ["OWNER"] },
   ];
 
   // Filter items based on active role
@@ -178,102 +220,171 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
   // If locked by subscription guard and not already on billing, redirect or overlay
   const isLocked = !hasSubscription && !isBillingPage;
 
+  // If sync failed, show dedicated error screen instead of blank dashboard
+  if (syncError) {
+    return (
+      <div className="flex min-h-screen bg-canvas-soft text-ink font-sans">
+        <div className="flex-grow flex flex-col min-w-0">
+          <header className="h-16 bg-canvas border-b border-ink/5 px-4 sm:px-8 flex items-center justify-between sticky top-0 z-10">
+            <span className="font-extrabold text-lg text-ink">Trimly Dashboard</span>
+            <UserButton />
+          </header>
+          <SyncErrorScreen message={syncError} onRetry={retrySync} />
+        </div>
+      </div>
+    );
+  }
+
+  const NavContent = () => (
+    <>
+      {allowedNavItems.map((item) => {
+        const active = pathname.startsWith(item.path);
+        const IconComponent = item.icon;
+
+        if (!shop) {
+          return (
+            <div
+              key={item.path}
+              className="flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm text-mute-text/40 cursor-not-allowed select-none"
+            >
+              <IconComponent className="w-4 h-4 text-mute-text/30" />
+              {item.label}
+              <span className="ml-auto text-[10px] font-bold bg-canvas-soft px-1.5 py-0.5 rounded border border-ink/5">🔒</span>
+            </div>
+          );
+        }
+
+        return (
+          <Link
+            key={item.path}
+            href={item.path}
+            onClick={() => setSidebarOpen(false)}
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition-all ${
+              active
+                ? "bg-primary text-ink border border-ink/10"
+                : "text-body-text hover:bg-canvas-soft hover:text-ink"
+            }`}
+          >
+            <IconComponent className="w-4 h-4 text-mute-text" />
+            {item.label}
+          </Link>
+        );
+      })}
+
+      {/* Back to Home link */}
+      <Link
+        href="/"
+        onClick={() => setSidebarOpen(false)}
+        className="flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm text-body-text hover:bg-canvas-soft hover:text-ink transition-all border border-ink/5 mt-4"
+      >
+        <Home className="w-4 h-4 text-mute-text" />
+        Back to Home
+      </Link>
+    </>
+  );
+
   return (
     <div className="flex min-h-screen bg-canvas-soft text-ink font-sans">
-      {/* Sidebar Navigation */}
-      <aside className="w-64 bg-canvas border-r border-ink/5 flex flex-col justify-between sticky top-0 h-screen z-20">
+      {/* ─── Mobile sidebar overlay backdrop ─── */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-ink/20 backdrop-blur-sm z-30 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* ─── Desktop Sidebar (hidden on mobile) ─── */}
+      <aside className="hidden lg:flex w-64 bg-canvas border-r border-ink/5 flex-col justify-between sticky top-0 h-screen z-20">
         <div>
           {/* Logo */}
           <div className="h-16 px-6 border-b border-ink/5 flex items-center gap-2">
-            <svg
-              className="w-7 h-7 text-ink"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
+            <svg className="w-7 h-7 text-ink" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="6" cy="6" r="3" />
               <circle cx="6" cy="18" r="3" />
               <line x1="9.8" y1="8.2" x2="21" y2="19" />
               <line x1="9.8" y1="15.8" x2="21" y2="5" />
             </svg>
-            <span className="font-extrabold text-xl tracking-tight text-ink">Trimly Dashboard</span>
+            <span className="font-extrabold text-xl tracking-tight text-ink">Trimly</span>
           </div>
-
-          {/* Navigation Links */}
+          {/* Navigation */}
           <nav className="p-4 space-y-1">
-            {allowedNavItems.map((item) => {
-              const active = pathname.startsWith(item.path);
-              const IconComponent = item.icon;
-
-              if (!shop) {
-                // Render disabled navigation links during setup
-                return (
-                  <div
-                    key={item.path}
-                    className="flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm text-mute-text/40 cursor-not-allowed select-none"
-                  >
-                    <IconComponent className="w-4 h-4 text-mute-text/30" />
-                    {item.label}
-                    <span className="ml-auto text-[10px] font-bold bg-canvas-soft px-1.5 py-0.5 rounded border border-ink/5">🔒</span>
-                  </div>
-                );
-              }
-
-              return (
-                <Link
-                  key={item.path}
-                  href={item.path}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition-all ${
-                    active
-                      ? "bg-primary text-ink border border-ink/10"
-                      : "text-body-text hover:bg-canvas-soft hover:text-ink"
-                  }`}
-                >
-                  <IconComponent className="w-4 h-4 text-mute-text" />
-                  {item.label}
-                </Link>
-              );
-            })}
-
-            {/* Persistent Back to Home Link inside navigation */}
-            <Link
-              href="/"
-              className="flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm text-body-text hover:bg-canvas-soft hover:text-ink transition-all border border-ink/5 mt-4"
-            >
-              <Home className="w-4 h-4 text-mute-text" />
-              Back to Home / Exit Dashboard
-            </Link>
+            <NavContent />
           </nav>
         </div>
       </aside>
 
-      {/* Main Content Pane */}
-      <div className="flex-grow flex flex-col min-w-0">
+      {/* ─── Mobile Sidebar Drawer ─── */}
+      <aside
+        className={`fixed top-0 left-0 h-full w-72 bg-canvas border-r border-ink/5 flex flex-col z-40 transition-transform duration-300 ease-in-out lg:hidden ${
+          sidebarOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
+        <div className="h-16 px-6 border-b border-ink/5 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <svg className="w-7 h-7 text-ink" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="6" cy="6" r="3" />
+              <circle cx="6" cy="18" r="3" />
+              <line x1="9.8" y1="8.2" x2="21" y2="19" />
+              <line x1="9.8" y1="15.8" x2="21" y2="5" />
+            </svg>
+            <span className="font-extrabold text-xl tracking-tight text-ink">Trimly</span>
+          </div>
+          <button
+            onClick={() => setSidebarOpen(false)}
+            className="w-8 h-8 rounded-lg bg-canvas-soft flex items-center justify-center hover:bg-ink/5 transition-colors"
+          >
+            <X className="w-4 h-4 text-ink" />
+          </button>
+        </div>
+        <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+          <NavContent />
+        </nav>
+        {/* Mobile user info */}
+        <div className="p-4 border-t border-ink/5 flex items-center gap-3">
+          <UserButton />
+          <div className="min-w-0">
+            <p className="text-sm font-bold text-ink truncate">{displayName}</p>
+            <p className="text-xs text-mute-text truncate">{displayEmail}</p>
+          </div>
+        </div>
+      </aside>
+
+      {/* ─── Main Content Pane ─── */}
+      <div className="flex-grow flex flex-col min-w-0 overflow-hidden">
         {/* Topbar */}
-        <header className="h-16 bg-canvas border-b border-ink/5 px-8 flex items-center justify-between sticky top-0 z-10">
+        <header className="h-16 bg-canvas border-b border-ink/5 px-4 sm:px-6 lg:px-8 flex items-center justify-between sticky top-0 z-10">
           <div className="flex items-center gap-3">
-            <h2 className="font-extrabold text-lg text-ink">
+            {/* Mobile menu button */}
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="lg:hidden w-9 h-9 rounded-xl bg-canvas-soft flex items-center justify-center hover:bg-ink/5 transition-colors mr-1"
+              aria-label="Open menu"
+            >
+              <Menu className="w-5 h-5 text-ink" />
+            </button>
+            <h2 className="font-extrabold text-base sm:text-lg text-ink truncate max-w-[140px] sm:max-w-xs">
               {shop ? shop.name : "Setup Pending"}
             </h2>
-            <span className="text-xs font-bold bg-canvas-soft text-body-text px-2 py-0.5 rounded-md border border-ink/5">
+            <span className="hidden sm:inline text-xs font-bold bg-canvas-soft text-body-text px-2 py-0.5 rounded-md border border-ink/5">
               {role === "OWNER" ? "Owner Admin" : "Barber Staff"}
             </span>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="hidden lg:flex items-center gap-4">
             <div className="text-right">
               <span className="block text-sm font-bold text-ink">{displayName}</span>
               <span className="block text-xs text-mute-text">{displayEmail}</span>
             </div>
             <UserButton />
           </div>
+          {/* Mobile: just the UserButton */}
+          <div className="lg:hidden">
+            <UserButton />
+          </div>
         </header>
 
         {/* Content Wrapper */}
-        <main className="flex-grow p-8 relative flex flex-col">
+        <main className="flex-grow p-4 sm:p-6 lg:p-8 relative flex flex-col overflow-x-hidden">
           {shop === null ? (
             role === "OWNER" ? (
               <CreateShopOnboarding />
@@ -281,8 +392,8 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
               <BarberPendingScreen />
             )
           ) : isLocked ? (
-            <div className="flex-grow flex items-center justify-center p-8 min-h-[calc(100vh-12rem)]">
-              <div className="max-w-md w-full card-content border border-ink/5 text-center shadow-xl p-8 bg-canvas rounded-wise">
+            <div className="flex-grow flex items-center justify-center p-4 sm:p-8 min-h-[calc(100vh-12rem)]">
+              <div className="max-w-md w-full card-content border border-ink/5 text-center shadow-xl p-6 sm:p-8 bg-canvas rounded-wise">
                 <div className="w-16 h-16 bg-negative-bg text-white rounded-full flex items-center justify-center mx-auto mb-6">
                   <span className="text-3xl">🔒</span>
                 </div>
@@ -339,17 +450,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   if (!isSignedIn) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-canvas-soft p-4">
-        <div className="w-full max-w-md bg-canvas rounded-wise p-8 shadow-xl border border-ink/5 text-center flex flex-col items-center">
+        <div className="w-full max-w-md bg-canvas rounded-wise p-6 sm:p-8 shadow-xl border border-ink/5 text-center flex flex-col items-center">
           <div className="flex items-center gap-2 mb-6">
-            <svg
-              className="w-10 h-10 text-ink"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
+            <svg className="w-10 h-10 text-ink" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="6" cy="6" r="3" />
               <circle cx="6" cy="18" r="3" />
               <line x1="9.8" y1="8.2" x2="21" y2="19" />
@@ -374,4 +477,3 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     </B2BProviders>
   );
 }
-

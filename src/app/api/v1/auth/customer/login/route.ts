@@ -1,47 +1,50 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import bcrypt from "bcryptjs";
 import { connectDB } from "@/lib/db";
 import { CustomerModel } from "@/lib/models/Customer";
 import { signCustomerToken } from "@/lib/auth";
+import { fail, handleRouteError, ok } from "@/lib/api-response";
+import { rateLimit } from "@/lib/rate-limit";
+import { sanitizeString } from "@/lib/validation";
 
 export async function POST(request: NextRequest) {
+  const limited = rateLimit(request, "auth:customer-login", { limit: 8, windowMs: 10 * 60 * 1000 });
+  if (limited) return limited;
+
   try {
     const { identifier, password } = await request.json();
-    if (!identifier || !password) {
-      return NextResponse.json({ success: false, error: "Identifier and password required" }, { status: 400 });
+    const cleanIdentifier = sanitizeString(identifier, 254);
+    if (!cleanIdentifier || typeof password !== "string") {
+      return fail("BAD_REQUEST", "Identifier and password required", 400);
     }
 
     await connectDB();
 
     const customer = await CustomerModel.findOne({
-      $or: [{ email: identifier }, { phone: identifier }],
+      $or: [{ email: cleanIdentifier.toLowerCase() }, { phone: cleanIdentifier }],
     });
 
     if (!customer || !customer.passwordHash) {
-      return NextResponse.json({ success: false, error: "Invalid credentials" }, { status: 401 });
+      return fail("UNAUTHORIZED", "Invalid credentials", 401);
     }
 
     const valid = await bcrypt.compare(password, customer.passwordHash);
     if (!valid) {
-      return NextResponse.json({ success: false, error: "Invalid credentials" }, { status: 401 });
+      return fail("UNAUTHORIZED", "Invalid credentials", 401);
     }
 
     const token = await signCustomerToken(customer._id.toString());
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        customer: {
-          id: customer._id.toString(),
-          phone: customer.phone,
-          email: customer.email,
-          name: customer.name,
-        },
-        token,
+    return ok({
+      customer: {
+        id: customer._id.toString(),
+        phone: customer.phone,
+        email: customer.email,
+        name: customer.name,
       },
+      token,
     });
   } catch (err) {
-    console.error("[login]", err);
-    return NextResponse.json({ success: false, error: "Login failed" }, { status: 500 });
+    return handleRouteError("login", err);
   }
 }

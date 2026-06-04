@@ -140,17 +140,17 @@ export async function PUT(request: NextRequest) {
     await connectDB();
 
     const allowedFields = ["name", "profileImage", "profilePicture", "images", "galleryPictures", "mapUrl", "googleMapsUrl", "country", "state", "city", "address", "businessHours"];
-    const update: Record<string, any> = {};
+    const update: Record<string, unknown> = {};
     for (const key of allowedFields) {
       if (body[key] !== undefined) update[key] = body[key];
     }
 
     if (update.googleMapsUrl !== undefined) {
-      const sanitized = await sanitizeAndResolveMapUrl(update.googleMapsUrl);
+      const sanitized = await sanitizeAndResolveMapUrl(update.googleMapsUrl as string | undefined);
       update.googleMapsUrl = sanitized;
       update.mapUrl = sanitized; // Sync for backward compatibility
     } else if (update.mapUrl !== undefined) {
-      const sanitized = await sanitizeAndResolveMapUrl(update.mapUrl);
+      const sanitized = await sanitizeAndResolveMapUrl(update.mapUrl as string | undefined);
       update.mapUrl = sanitized;
       update.googleMapsUrl = sanitized; // Sync
     }
