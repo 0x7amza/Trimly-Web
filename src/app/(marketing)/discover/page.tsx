@@ -27,19 +27,12 @@ function DiscoverDirectory() {
   const [results, setResults] = useState<SearchResult[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedLocation, setSelectedLocation] = useState("All");
-
-  // Parse URL query params on load
-  useEffect(() => {
-    const query = searchParams.get("query") || "";
-    const location = searchParams.get("location") || "All";
-    if (query) setSearchQuery(query);
-    if (location) setSelectedLocation(location);
-  }, [searchParams]);
+  const [searchQuery, setSearchQuery] = useState(() => searchParams.get("query") || "");
+  const [selectedLocation, setSelectedLocation] = useState(() => searchParams.get("location") || "All");
 
   // Fetch results from /api/v1/search (real DB)
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsLoading(true);
     const params: Record<string, string> = {};
     if (searchQuery) params.searchQuery = searchQuery;

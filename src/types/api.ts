@@ -53,6 +53,7 @@ export interface Shop {
   address?: string;
   mapUrl?: string;
   googleMapsUrl?: string;
+  timezone?: string;
   businessHours?: BusinessHours[];
   avgRating?: number;
   totalReviews?: number;

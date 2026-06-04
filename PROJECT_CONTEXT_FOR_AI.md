@@ -27,7 +27,7 @@ Installed versions:
 - Clerk Next.js `7.3.7`
 - Mongoose `9.6.2`
 - Framer Motion `12.39.0`
-- Stripe client libraries are installed. Backend Stripe integration is guarded so production does not fake payments, subscriptions, billing portal sessions, or webhook verification.
+- Stripe client libraries are installed. Booking payments, subscription checkout, and billing portal routes do not fake success; production webhook verification is guarded until the real implementation exists.
 
 Next 16 patterns already present:
 
@@ -74,6 +74,7 @@ Used by code:
 
 - `MONGODB_URI`: required by `src/lib/db.ts`.
 - `NEXT_PUBLIC_APP_URL`: used server-side by `src/lib/api.ts` when route handlers/pages call the internal API; defaults to `http://localhost:3000`.
+- `NEXT_PUBLIC_BOOKING_BUFFER_MINUTES`: minimum online booking lead time before rounding to the next 15-minute slot; defaults to `15`.
 - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`: Clerk public key.
 - `CLERK_SECRET_KEY`: Clerk server key.
 - `NEXT_PUBLIC_CLERK_SIGN_IN_URL`, `NEXT_PUBLIC_CLERK_SIGN_UP_URL`: present in example.
@@ -116,6 +117,7 @@ Fields:
 - `maxBarbersIncluded`: defaults to `5`.
 - Images: `profileImage`, `profilePicture`, `images`, `galleryPictures`.
 - Maps/location: `mapUrl`, `googleMapsUrl`, `country`, `state`, `city`, `address`.
+- `timezone`: IANA timezone used to interpret opening hours and display appointment times; existing records without a value fall back to `UTC`.
 - `businessHours`: array of `{ day, open, close, isClosed }`.
 
 Shop slug is unique and indexed.
@@ -242,6 +244,7 @@ API groups:
 - `api.bookings`: getAvailability, createOnline, createManual, getBarberBookings, getCustomerBookings, updateStatus.
 - `api.shops`: create, getMe, updateMe, addBarber, getBySlug.
 - `api.subscriptions`: subscribe, billingPortal.
+- `api.config.getPublic`: reads safe public feature flags and the booking buffer.
 - `api.statistics`: getShopStats, getBarberStats.
 - `api.search`: public shop search.
 - `api.products`: getShopProducts, create, update, delete.
@@ -251,6 +254,12 @@ API groups:
 ## 10. API Route Handlers
 
 All implemented under `src/app/api/v1`.
+
+### Public Config
+
+- `GET /api/v1/config/public`
+  - Returns safe public flags: `stripeConfigured`, `onlinePaymentsEnabled`, `subscriptionBillingEnabled`, and `bookingBufferMinutes`.
+  - Payment feature flags stay `false` until their real server flows are implemented, even if Stripe keys exist.
 
 ### Customer Auth
 
@@ -319,6 +328,8 @@ All implemented under `src/app/api/v1`.
   - Public.
   - Finds barber, service duration, and business hours.
   - Reads business hours from Shop first, then Barber, then default `09:00-18:00`.
+  - Interprets the selected date and hours in `Shop.timezone`.
+  - For today, removes slots earlier than the rounded `now + booking buffer`.
   - Returns available ISO slot starts in 15-minute increments.
   - Filters out overlapping non-cancelled bookings.
 
@@ -326,7 +337,8 @@ All implemented under `src/app/api/v1`.
   - Customer JWT required.
   - Body: `{ barberId, serviceId, startTime, paymentOption?, notes? }`.
   - Validates service id, ISO start time, payment option, and service ownership by selected barber.
-  - Checks service exists, start time is not in the past, and slot has no overlapping booking.
+  - Checks service exists, start time is not in the past/booking buffer, appointment stays inside opening hours, and slot has no overlapping booking.
+  - Uses a short Mongo-backed per-barber lock before the final overlap check and insert.
   - Creates `ONLINE` booking with customer name/phone snapshot.
   - Pay-on-arrival creates the booking and returns `clientSecret: null`.
   - Stripe/card payment currently returns a 503 `PAYMENT_UNAVAILABLE` response until real PaymentIntent creation is implemented.
@@ -385,14 +397,14 @@ All implemented under `src/app/api/v1`.
 
 - `POST /api/v1/shops/me/subscribe`
   - Owner required.
-  - Accepts several plan strings but normalizes to `MONTHLY` or `YEARLY`.
-  - If `STRIPE_SECRET_KEY` is absent outside production, activates subscription directly in dev/mock mode.
-  - In production, missing Stripe config or unfinished checkout creation returns explicit 503 JSON errors instead of faking a paid subscription.
+  - Validates supported plan strings.
+  - Returns an explicit 503 JSON error until real Stripe Checkout Session creation is implemented.
+  - Never activates a subscription without verified payment.
 
 - `POST /api/v1/shops/me/billing-portal`
   - Owner required.
-  - Returns a local mock URL outside production when Stripe is absent.
-  - In production, returns explicit 503 JSON errors until real Stripe billing portal session creation is implemented.
+  - Returns an explicit 503 JSON error until real Stripe billing portal session creation is implemented.
+  - Never returns a fake or generic portal URL.
 
 ### Products
 
@@ -566,9 +578,10 @@ Files under `src/app/(dashboard)`.
 - `dashboard/calendar/page.tsx`
   - Daily timeline UI.
   - Loads current barber bookings and services.
-  - Filters bookings for selected date by ISO date prefix.
+  - Filters bookings using a timezone-aware UTC day range rather than an ISO string prefix.
   - Timeline uses `Shop.businessHours` for the selected date, with a 09:00-18:00 fallback when no hours are saved.
   - Closed days show a closed-state message.
+  - Displays and creates appointments in `Shop.timezone`; empty past slots are not clickable.
   - Empty slots open quick-add modal.
   - Supports walk-in manual bookings and blocked time.
   - Existing booking opens details modal with cancel/complete actions.
@@ -601,9 +614,8 @@ Files under `src/app/(dashboard)`.
 - `dashboard/billing/page.tsx`
   - Owner-only.
   - Shows current subscription, trial, active plan, seat usage.
-  - Can auto-start subscription if URL has `?plan=MONTHLY` or `?plan=YEARLY`.
-  - In dev/no Stripe secret, subscription activates immediately via API.
-  - In production, subscription and billing portal routes are guarded until real Stripe sessions are implemented.
+  - Shows an unavailable state and disables billing actions when Stripe is not configured.
+  - Only follows real Stripe Checkout or Billing Portal URLs returned by the server.
 
 - `dashboard/analytics/page.tsx`
   - Owner sees shop stats; barber sees personal stats.
@@ -647,6 +659,12 @@ This is the main dashboard state source. There is no Zustand store despite older
 - `src/lib/validation.ts`
   - Shared validators and sanitizers for ObjectIds, slugs, E.164 phone numbers, ISO dates, pagination, prices, and short strings.
 
+- `src/lib/booking-time.ts`
+  - Shared timezone-aware business-hours, booking-buffer, slot-generation, and booking-time validation logic.
+
+- `src/lib/booking-lock.ts`
+  - Serializes booking creation per barber across app instances before the final overlap check.
+
 - `src/lib/image-utils.ts`
   - Client-side image compression using canvas.
   - Skips non-images and GIFs.
@@ -681,7 +699,7 @@ These are important for future work:
 - Uploads write to `public/uploads`; this is not durable cloud storage.
 - Public reviews are unauthenticated and not tied to completed bookings.
 - Public product cart is only persisted into booking `notes`, not as normalized product line items.
-- The app uses UTC-style ISO strings for bookings and time display in several places. Timezone behavior should be reviewed before production.
+- Bookings are stored as UTC timestamps and the public booking/dashboard calendar use `Shop.timezone`. Existing shops must confirm their timezone in Settings because missing values fall back to `UTC`.
 - Category pages other than `/barber` currently show no shops because category matching is hardcoded to `"barber"`.
 - `barbers/sync` attempts to drop the old `slug_1` index on every sync call.
 - Some older comments/docs mention WhatsApp automation, but implemented OTP is SMS via Twilio Messages API and booking confirmations are not fully implemented.
@@ -708,4 +726,4 @@ Current verification:
 - `npx tsc --noEmit --pretty false` passes.
 - `npm run build` passes.
 - Scoped ESLint for the hardened server/API files passes.
-- Full `npm run lint` still fails with 50 errors and 68 warnings on existing client/page lint debt, including React `set-state-in-effect` findings and older `any` usage outside the hardened API set.
+- Full `npm run lint` passes with 61 warning-only findings, mainly existing `<img>` optimization and hook dependency cleanup.

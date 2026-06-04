@@ -3,6 +3,8 @@ import { connectDB } from "@/lib/db";
 import { ShopModel } from "@/lib/models/Shop";
 import { BarberModel } from "@/lib/models/Barber";
 import { requireBarber, requireOwner } from "@/lib/auth";
+import { fail, handleRouteError } from "@/lib/api-response";
+import { isBusinessHours, isTimeZone } from "@/lib/validation";
 
 function serializeShop(shop: InstanceType<typeof ShopModel>) {
   return {
@@ -30,6 +32,7 @@ function serializeShop(shop: InstanceType<typeof ShopModel>) {
     state: shop.state,
     city: shop.city,
     address: shop.address,
+    timezone: shop.timezone || "UTC",
     businessHours: shop.businessHours,
   };
 }
@@ -68,7 +71,7 @@ export async function GET() {
     });
 
     if (!shop) {
-      return NextResponse.json({ success: false, error: "Shop not found" }, { status: 404 });
+      return fail("NOT_FOUND", "Shop not found", 404);
     }
 
     const barbers = await BarberModel.find({ shopId: shop._id });
@@ -78,8 +81,7 @@ export async function GET() {
       data: { shop: serializeShop(shop), barbers: barbers.map(serializeBarber) },
     });
   } catch (err) {
-    console.error("[shops/me GET]", err);
-    return NextResponse.json({ success: false, error: "Failed to fetch shop" }, { status: 500 });
+    return handleRouteError("shops/me GET", err);
   }
 }
 
@@ -139,10 +141,16 @@ export async function PUT(request: NextRequest) {
     const body = await request.json();
     await connectDB();
 
-    const allowedFields = ["name", "profileImage", "profilePicture", "images", "galleryPictures", "mapUrl", "googleMapsUrl", "country", "state", "city", "address", "businessHours"];
+    const allowedFields = ["name", "profileImage", "profilePicture", "images", "galleryPictures", "mapUrl", "googleMapsUrl", "country", "state", "city", "address", "timezone", "businessHours"];
     const update: Record<string, unknown> = {};
     for (const key of allowedFields) {
       if (body[key] !== undefined) update[key] = body[key];
+    }
+    if (update.timezone !== undefined && !isTimeZone(update.timezone)) {
+      return fail("VALIDATION_ERROR", "Please choose a valid IANA timezone", 400);
+    }
+    if (update.businessHours !== undefined && !isBusinessHours(update.businessHours)) {
+      return fail("VALIDATION_ERROR", "Opening hours must contain valid, non-overlapping daily time ranges", 400);
     }
 
     if (update.googleMapsUrl !== undefined) {
@@ -181,12 +189,11 @@ export async function PUT(request: NextRequest) {
     );
 
     if (!shop) {
-      return NextResponse.json({ success: false, error: "Shop not found" }, { status: 404 });
+      return fail("NOT_FOUND", "Shop not found", 404);
     }
 
     return NextResponse.json({ success: true, data: serializeShop(shop) });
   } catch (err) {
-    console.error("[shops/me PUT]", err);
-    return NextResponse.json({ success: false, error: "Update failed" }, { status: 500 });
+    return handleRouteError("shops/me PUT", err);
   }
 }

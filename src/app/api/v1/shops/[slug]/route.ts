@@ -37,6 +37,7 @@ export async function GET(
           state: shop.state,
           city: shop.city,
           address: shop.address,
+          timezone: shop.timezone || "UTC",
           businessHours: shop.businessHours,
           maxBarbersIncluded: shop.maxBarbersIncluded,
           subscription: {

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import { ServiceModel } from "@/lib/models/Service";
 import { requireBarber } from "@/lib/auth";
+import { fail, handleRouteError } from "@/lib/api-response";
+import { isObjectId, isPositiveInt, sanitizeString } from "@/lib/validation";
 
 // PUT /api/v1/services/[id]
 export async function PUT(
@@ -9,6 +11,9 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+  if (!isObjectId(id)) {
+    return fail("VALIDATION_ERROR", "Invalid service id", 400);
+  }
   const result = await requireBarber();
   if ("error" in result) return result.error;
 
@@ -16,17 +21,27 @@ export async function PUT(
     await connectDB();
     const service = await ServiceModel.findById(id);
     if (!service) {
-      return NextResponse.json({ success: false, error: "Service not found" }, { status: 404 });
+      return fail("NOT_FOUND", "Service not found", 404);
     }
     if (service.barberId !== result.clerkId) {
-      return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
+      return fail("FORBIDDEN", "Forbidden", 403);
     }
 
     const { name, price, durationMinutes, category } = await request.json();
-    if (name !== undefined) service.name = name;
-    if (price !== undefined) service.price = price;
-    if (durationMinutes !== undefined) service.durationMinutes = durationMinutes;
-    if (category !== undefined) service.category = category;
+    if (name !== undefined) {
+      const cleanName = sanitizeString(name, 120);
+      if (!cleanName) return fail("VALIDATION_ERROR", "Service name is required", 400);
+      service.name = cleanName;
+    }
+    if (price !== undefined) {
+      if (!isPositiveInt(price, 0, 10_000_000)) return fail("VALIDATION_ERROR", "Invalid price", 400);
+      service.price = price;
+    }
+    if (durationMinutes !== undefined) {
+      if (!isPositiveInt(durationMinutes, 5, 12 * 60)) return fail("VALIDATION_ERROR", "Invalid duration", 400);
+      service.durationMinutes = durationMinutes;
+    }
+    if (category !== undefined) service.category = sanitizeString(category, 80);
     await service.save();
 
     return NextResponse.json({
@@ -43,8 +58,7 @@ export async function PUT(
       },
     });
   } catch (err) {
-    console.error("[services/id PUT]", err);
-    return NextResponse.json({ success: false, error: "Update failed" }, { status: 500 });
+    return handleRouteError("services/id PUT", err);
   }
 }
 
@@ -54,6 +68,9 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+  if (!isObjectId(id)) {
+    return fail("VALIDATION_ERROR", "Invalid service id", 400);
+  }
   const result = await requireBarber();
   if ("error" in result) return result.error;
 
@@ -61,10 +78,10 @@ export async function DELETE(
     await connectDB();
     const service = await ServiceModel.findById(id);
     if (!service) {
-      return NextResponse.json({ success: false, error: "Service not found" }, { status: 404 });
+      return fail("NOT_FOUND", "Service not found", 404);
     }
     if (service.barberId !== result.clerkId) {
-      return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
+      return fail("FORBIDDEN", "Forbidden", 403);
     }
 
     service.isActive = false;
@@ -72,7 +89,6 @@ export async function DELETE(
 
     return NextResponse.json({ success: true, message: "Service deleted" });
   } catch (err) {
-    console.error("[services/id DELETE]", err);
-    return NextResponse.json({ success: false, error: "Delete failed" }, { status: 500 });
+    return handleRouteError("services/id DELETE", err);
   }
 }

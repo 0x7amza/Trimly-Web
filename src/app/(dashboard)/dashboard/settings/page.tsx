@@ -34,6 +34,13 @@ const DEFAULT_HOURS: BusinessHours[] = [
   { day: 0, open: "09:00", close: "17:00", isClosed: true },
 ];
 
+const TIMEZONE_OPTIONS = Array.from(
+  new Set([
+    "UTC",
+    ...(typeof Intl.supportedValuesOf === "function" ? Intl.supportedValuesOf("timeZone") : []),
+  ])
+).map((value) => ({ value, label: value.replaceAll("_", " ") }));
+
 const inputCls =
   "w-full bg-canvas border border-ink/10 rounded-xl py-3 px-4 text-xs font-bold text-ink focus:outline-none focus:border-ink transition-colors shadow-sm";
 
@@ -57,6 +64,7 @@ export default function SettingsPage() {
 
   // Opening Hours
   const [businessHours, setBusinessHours] = useState<BusinessHours[]>(DEFAULT_HOURS);
+  const [timezone, setTimezone] = useState("UTC");
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -86,6 +94,7 @@ export default function SettingsPage() {
         setAddress(s.address || "");
         setMapUrl(s.mapUrl || "");
         setGoogleMapsUrl(s.googleMapsUrl || s.mapUrl || "");
+        setTimezone(s.timezone || "UTC");
         setBusinessHours(s.businessHours && s.businessHours.length > 0 ? s.businessHours : DEFAULT_HOURS);
       }
     } catch {
@@ -96,7 +105,8 @@ export default function SettingsPage() {
   };
 
   useEffect(() => {
-    loadSettings();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void loadSettings();
   }, [activeBarber]);
 
   const handleUploadProfileFile = async (file: File) => {
@@ -175,6 +185,7 @@ export default function SettingsPage() {
         address,
         mapUrl: googleMapsUrl,
         googleMapsUrl,
+        timezone,
         businessHours,
       });
       if (res.success) {
@@ -390,7 +401,23 @@ export default function SettingsPage() {
                 Set when your shop is open. Clients see these hours on your public booking page and the calendar will only show slots within this window.
               </p>
               <p className="text-[10px] text-body-text mt-1 bg-canvas-soft px-3 py-1.5 rounded-lg border border-ink/5 font-semibold">
-                💡 Tip: Time inputs support any hour from <strong>00:00</strong> (midnight) to <strong>23:59</strong> — including early morning shifts from 6:00 AM or 24/7 operations.
+                💡 Tip: Time inputs support any hour from <strong>00:00</strong> (midnight) to <strong>23:59</strong>, including early morning and late evening shifts.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-body-text">
+                Salon Timezone
+              </label>
+              <CustomCombobox
+                value={timezone}
+                onChange={setTimezone}
+                options={TIMEZONE_OPTIONS}
+                placeholder="Select timezone..."
+                searchPlaceholder="Search timezones..."
+              />
+              <p className="text-[10px] text-mute-text font-semibold">
+                Appointment times and opening hours are interpreted in this timezone.
               </p>
             </div>
 
@@ -501,7 +528,7 @@ export default function SettingsPage() {
                         alt="Cover photo preview"
                         className="w-full h-full object-cover"
                         onError={(e) => {
-                          (e.target as any).src = "https://images.unsplash.com/photo-1621605815971-fbc98d665033?auto=format&fit=crop&w=600&q=80";
+                          e.currentTarget.src = "https://images.unsplash.com/photo-1621605815971-fbc98d665033?auto=format&fit=crop&w=600&q=80";
                         }}
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
@@ -587,7 +614,7 @@ export default function SettingsPage() {
                         alt={`Gallery ${index}`}
                         className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                         onError={(e) => {
-                          (e.target as any).src = "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&w=300&h=300&q=80";
+                          e.currentTarget.src = "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&w=300&h=300&q=80";
                         }}
                       />
                       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
@@ -618,7 +645,7 @@ export default function SettingsPage() {
               Your address is shown to clients as a live Google Maps embed — no API key required.
             </p>
             <p className="text-[11px] text-body-text leading-relaxed">
-              Opening hours display on your booking page. Mark days as "Closed" to block that day automatically.
+              Opening hours display on your booking page. Mark days as &quot;Closed&quot; to block that day automatically.
             </p>
             <p className="text-[11px] text-body-text leading-relaxed">
               Use high-resolution square images for the profile and landscape for gallery.

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import { ServiceModel } from "@/lib/models/Service";
 import { requireBarber } from "@/lib/auth";
+import { fail, handleRouteError } from "@/lib/api-response";
+import { isPositiveInt, sanitizeString } from "@/lib/validation";
 
 function serializeService(s: InstanceType<typeof ServiceModel>) {
   return {
@@ -23,22 +25,27 @@ export async function POST(request: NextRequest) {
 
   try {
     const { name, price, durationMinutes, category } = await request.json();
-    if (!name || price == null || !durationMinutes) {
-      return NextResponse.json({ success: false, error: "name, price, durationMinutes required" }, { status: 400 });
+    const cleanName = sanitizeString(name, 120);
+    const cleanCategory = sanitizeString(category, 80);
+    if (
+      !cleanName ||
+      !isPositiveInt(price, 0, 10_000_000) ||
+      !isPositiveInt(durationMinutes, 5, 12 * 60)
+    ) {
+      return fail("VALIDATION_ERROR", "Valid name, price, and duration are required", 400);
     }
 
     await connectDB();
     const service = await ServiceModel.create({
       barberId: result.clerkId,
-      name,
+      name: cleanName,
       price,
       durationMinutes,
-      category,
+      category: cleanCategory,
     });
 
     return NextResponse.json({ success: true, data: serializeService(service) }, { status: 201 });
   } catch (err) {
-    console.error("[services POST]", err);
-    return NextResponse.json({ success: false, error: "Failed to create service" }, { status: 500 });
+    return handleRouteError("services POST", err);
   }
 }

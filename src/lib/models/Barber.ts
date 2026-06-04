@@ -47,5 +47,7 @@ const BarberSchema = new Schema<IBarber>(
   { timestamps: true }
 );
 
+BarberSchema.index({ shopId: 1, email: 1 });
+
 export const BarberModel: Model<IBarber> =
   mongoose.models.Barber || mongoose.model<IBarber>("Barber", BarberSchema);

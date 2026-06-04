@@ -16,7 +16,27 @@ import {
 } from "lucide-react";
 import { api, Barber, Service, Shop } from "@/lib/api";
 
-const CATEGORY_ICONS: Record<string, React.ComponentType<any>> = {
+type SearchShopResult = {
+  id: string;
+  name: string;
+  slug: string;
+  profileImage?: string;
+  images?: string[];
+  city?: string;
+  address?: string;
+  avgRating?: number;
+  totalReviews?: number;
+};
+
+type SearchResponse = {
+  success: boolean;
+  data: {
+    results: SearchShopResult[];
+    cities?: string[];
+  };
+};
+
+const CATEGORY_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   hairdresser: Scissors,
   barber: Scissors,
   manicure: Gem,
@@ -63,7 +83,7 @@ const CATEGORY_INFO: Record<string, {
 export default function CategoryLandingView({ categorySlug }: { categorySlug: string }) {
   const { isSignedIn } = useUser();
   const searchParams = useSearchParams();
-  const [selectedLocation, setSelectedLocation] = useState<string>("All");
+  const [selectedLocation, setSelectedLocation] = useState<string>(() => searchParams.get("city") || "All");
   const [activeCities, setActiveCities] = useState<string[]>([]);
   const [shops, setShops] = useState<Shop[]>([]);
   const [barbers, setBarbers] = useState<Barber[]>([]);
@@ -72,18 +92,12 @@ export default function CategoryLandingView({ categorySlug }: { categorySlug: st
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const city = searchParams.get("city");
-    if (city) setSelectedLocation(city);
-  }, [searchParams]);
-
-  useEffect(() => {
-    setIsLoading(true);
     fetch(`/api/v1/search`)
       .then(r => r.json())
-      .then(res => {
+      .then((res: SearchResponse) => {
         if (res.success) {
           // Build shop-like objects from search results
-          const mappedShops: Shop[] = res.data.results.map((item: any) => ({
+          const mappedShops: Shop[] = res.data.results.map((item) => ({
             id: item.id,
             ownerId: "",
             name: item.name,
@@ -105,7 +119,7 @@ export default function CategoryLandingView({ categorySlug }: { categorySlug: st
   }, [categorySlug]);
 
 
-  const getCategorySlugForShop = (industryType?: string) => {
+  const getCategorySlugForShop = () => {
     return "barber";
   };
 
@@ -253,7 +267,6 @@ export default function CategoryLandingView({ categorySlug }: { categorySlug: st
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {filteredShops.map((shop) => {
-              const shopBarbersList = getShopBarbers(shop.id);
               const shopServicesList = getShopServices(shop.id);
               const address = shop.address || (shop.city ? `${shop.city}, UK` : "Location, UK");
               const bio = `Barber services in ${shop.city || "local area"}.`;

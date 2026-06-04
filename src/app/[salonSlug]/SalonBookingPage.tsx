@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { api, Barber, Service, Customer, Shop, Product } from "@/lib/api";
+import { api, Barber, Service, Customer, Shop, ShopWithBarbers, Product } from "@/lib/api";
 import PhoneInput from "@/components/ui/PhoneInput";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements, CardElement, useStripe, useElements } from "@stripe/react-stripe-js";
@@ -32,8 +32,17 @@ import {
   ExternalLink
 } from "lucide-react";
 import { getEmbeddableMapUrl } from "@/lib/utils";
+import { ApiRequestError } from "@/lib/api-error";
+import {
+  addDaysToDateString,
+  formatDateInTimeZone,
+  getEarliestBookableTime,
+  normalizeTimeZone,
+} from "@/lib/booking-time";
 
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || "pk_test_mock");
+const stripePublishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || "";
+const isStripeClientConfigured = stripePublishableKey.startsWith("pk_") && !stripePublishableKey.includes("mock");
+const stripePromise = isStripeClientConfigured ? loadStripe(stripePublishableKey) : Promise.resolve(null);
 
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -149,12 +158,14 @@ function OrderSummaryBlock({
   selectedService, 
   selectedBarber, 
   selectedSlot, 
-  cart 
+  cart,
+  timeZone,
 }: { 
   selectedService: Service | null; 
   selectedBarber: Barber | null; 
   selectedSlot: string | null; 
-  cart: Array<{ product: Product; quantity: number }> 
+  cart: Array<{ product: Product; quantity: number }>;
+  timeZone: string;
 }) {
   const servicePrice = selectedService?.price || 0;
   const productsPrice = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
@@ -183,8 +194,8 @@ function OrderSummaryBlock({
       </div>
       {selectedSlot && selectedBarber && (
         <div className="text-[10px] text-mute-text mt-2 pt-2 border-t border-ink/5">
-          Specialist: <strong>{selectedBarber.name}</strong> • {new Date(selectedSlot).toLocaleDateString()} at{" "}
-          {new Date(selectedSlot).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })}
+          Specialist: <strong>{selectedBarber.name}</strong> • {new Date(selectedSlot).toLocaleDateString([], { timeZone })} at{" "}
+          {new Date(selectedSlot).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", timeZone })}
         </div>
       )}
     </div>
@@ -201,6 +212,8 @@ function CheckoutForm({
   setIsPaying,
   setConfirmedBookingId,
   setStep,
+  onSlotUnavailable,
+  stripeEnabled,
 }: {
   selectedBarber: Barber;
   selectedService: Service;
@@ -210,15 +223,32 @@ function CheckoutForm({
   setIsPaying: (val: boolean) => void;
   setConfirmedBookingId: (id: string) => void;
   setStep: (step: number) => void;
+  onSlotUnavailable: () => Promise<void>;
+  stripeEnabled: boolean;
 }) {
   const stripe = useStripe();
   const elements = useElements();
   const [errorMessage, setErrorMessage] = useState("");
-  const [paymentOption, setPaymentOption] = useState<"STRIPE" | "ARRIVE">("STRIPE");
+  const [paymentOption, setPaymentOption] = useState<"STRIPE" | "ARRIVE">(
+    stripeEnabled ? "STRIPE" : "ARRIVE"
+  );
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  const selectedSlotIsValid =
+    new Date(selectedSlot).getTime() >= getEarliestBookableTime(new Date(nowMs)).getTime();
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNowMs(Date.now()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const handlePayment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedBarber || !selectedService || !selectedSlot) return;
+    if (!selectedSlotIsValid) {
+      setErrorMessage("This time is no longer available. Please choose another slot.");
+      await onSlotUnavailable();
+      return;
+    }
     setIsPaying(true);
     setErrorMessage("");
 
@@ -232,10 +262,14 @@ function CheckoutForm({
         serviceId: selectedService.id,
         startTime: selectedSlot,
         paymentOption,
+        notes,
       });
 
       if (res.success) {
         if (paymentOption === "STRIPE") {
+          if (!stripeEnabled) {
+            throw new Error("Online card payment is not enabled yet. Please choose Pay on Arrival.");
+          }
           if (res.data.clientSecret && !res.data.clientSecret.startsWith("pi_mock_")) {
             if (!stripe || !elements) {
               throw new Error("Stripe checkout was not initialized correctly.");
@@ -254,15 +288,24 @@ function CheckoutForm({
             if (paymentIntent?.status !== "succeeded") {
               throw new Error("Payment was not completed successfully.");
             }
+          } else {
+            throw new Error("Online card payment is not available for this salon yet.");
           }
         }
 
-        // Save purchased products in simulated database or notes if needed
         setConfirmedBookingId(res.data.booking.id);
         setStep(6); // Success screen
       }
-    } catch (err: any) {
-      setErrorMessage(err.message || "Checkout failed. Please try a different slot.");
+    } catch (error: unknown) {
+      const isSlotError =
+        error instanceof ApiRequestError &&
+        ["PAST_BOOKING", "SLOT_UNAVAILABLE", "CONFLICT"].includes(error.code || "");
+      if (isSlotError) {
+        setErrorMessage("This time is no longer available. Please choose another slot.");
+        await onSlotUnavailable();
+      } else {
+        setErrorMessage(error instanceof Error ? error.message : "Checkout failed. Please try a different slot.");
+      }
     } finally {
       setIsPaying(false);
     }
@@ -271,19 +314,21 @@ function CheckoutForm({
   return (
     <form onSubmit={handlePayment} className="space-y-4">
       {/* Payment option selectors */}
-      <div className="grid grid-cols-2 gap-3 mb-4">
-        <button
-          type="button"
-          onClick={() => setPaymentOption("STRIPE")}
-          className={`py-3 px-4 rounded-xl border text-xs font-bold text-center cursor-pointer transition-all flex flex-col items-center justify-center gap-1 ${
-            paymentOption === "STRIPE"
-              ? "bg-ink text-white border-ink"
-              : "bg-canvas text-body-text border-ink/5 hover:border-ink/20"
-          }`}
-        >
-          <span>Pay Online</span>
-          <span className="text-[10px] opacity-75">Stripe Deposit</span>
-        </button>
+      <div className={`grid ${stripeEnabled ? "grid-cols-2" : "grid-cols-1"} gap-3 mb-4`}>
+        {stripeEnabled && (
+          <button
+            type="button"
+            onClick={() => setPaymentOption("STRIPE")}
+            className={`py-3 px-4 rounded-xl border text-xs font-bold text-center cursor-pointer transition-all flex flex-col items-center justify-center gap-1 ${
+              paymentOption === "STRIPE"
+                ? "bg-ink text-white border-ink"
+                : "bg-canvas text-body-text border-ink/5 hover:border-ink/20"
+            }`}
+          >
+            <span>Pay Online</span>
+            <span className="text-[10px] opacity-75">Stripe Deposit</span>
+          </button>
+        )}
         <button
           type="button"
           onClick={() => setPaymentOption("ARRIVE")}
@@ -298,7 +343,7 @@ function CheckoutForm({
         </button>
       </div>
 
-      {paymentOption === "STRIPE" ? (
+      {paymentOption === "STRIPE" && stripeEnabled ? (
         <div>
           <label className="block text-xs font-bold uppercase tracking-wider text-mute-text mb-2">
             Secure Card Details (PCI Compliant)
@@ -339,7 +384,17 @@ function CheckoutForm({
         </div>
       )}
 
-      <button type="submit" className="button-primary w-full py-4 mt-6" disabled={isPaying}>
+      {!selectedSlotIsValid && (
+        <div className="text-xs font-bold text-negative bg-negative/5 p-3 rounded-xl border border-negative/10">
+          This time is no longer available. Please choose another slot.
+        </div>
+      )}
+
+      <button
+        type="submit"
+        className="button-primary w-full py-4 mt-6"
+        disabled={isPaying || !selectedSlotIsValid}
+      >
         {isPaying
           ? "Processing Securely..."
           : paymentOption === "STRIPE"
@@ -356,12 +411,14 @@ export default function SalonBookingPage({
   initialShopData 
 }: { 
   salonSlug: string;
-  initialShopData?: any;
+  initialShopData?: ShopWithBarbers;
 }) {
   const { isSignedIn } = useUser();
   
   // State variables
   const [shop, setShop] = useState<Shop | null>(initialShopData?.shop || null);
+  const shopTimeZone = normalizeTimeZone(shop?.timezone);
+  const [stripeEnabled, setStripeEnabled] = useState(false);
   const [barbers, setBarbers] = useState<Barber[]>(initialShopData?.barbers || []);
   const [selectedBarber, setSelectedBarber] = useState<Barber | null>(null);
   const [services, setServices] = useState<Service[]>([]);
@@ -400,6 +457,14 @@ export default function SalonBookingPage({
     ? realReviews.reduce((sum, r) => sum + r.rating, 0) / totalReviews
     : 0;
 
+  useEffect(() => {
+    if (!isStripeClientConfigured) return;
+    api.config
+      .getPublic()
+      .then((response) => setStripeEnabled(response.success && response.data.onlinePaymentsEnabled))
+      .catch(() => setStripeEnabled(false));
+  }, []);
+
   const handleReviewSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newReviewName.trim() || !newReviewComment.trim()) return;
@@ -421,11 +486,13 @@ export default function SalonBookingPage({
   };
 
   // Slots & Scheduling States
-  const [dates, setDates] = useState<Date[]>([]);
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const [loadingSlots, setLoadingSlots] = useState(false);
+  const [slotsError, setSlotsError] = useState("");
+  const [slotNotice, setSlotNotice] = useState("");
+  const [availabilityNowMs, setAvailabilityNowMs] = useState(() => Date.now());
 
   // Customer Auth / Verification
   const [phone, setPhone] = useState("");
@@ -668,23 +735,23 @@ export default function SalonBookingPage({
   const [isPaying, setIsPaying] = useState(false);
   const [confirmedBookingId, setConfirmedBookingId] = useState<string | null>(null);
 
-  const getLocalDateStr = (date: Date) => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
-  };
-
-  // Init next 7 days list
-  useEffect(() => {
-    const arr = [];
+  const dates = useMemo(() => {
+    const today = formatDateInTimeZone(new Date(), shopTimeZone);
+    const arr: string[] = [];
     for (let i = 0; i < 7; i++) {
-      const d = new Date();
-      d.setDate(d.getDate() + i);
-      arr.push(d);
+      arr.push(addDaysToDateString(today, i));
     }
-    setDates(arr);
-    setSelectedDate(getLocalDateStr(arr[0]));
+    return arr;
+  }, [shopTimeZone]);
+  const activeSelectedDate = dates.includes(selectedDate) ? selectedDate : dates[0] || "";
+  const visibleAvailableSlots = useMemo(() => {
+    const earliest = getEarliestBookableTime(new Date(availabilityNowMs)).getTime();
+    return availableSlots.filter((slot) => new Date(slot).getTime() >= earliest);
+  }, [availableSlots, availabilityNowMs]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setAvailabilityNowMs(Date.now()), 30_000);
+    return () => window.clearInterval(timer);
   }, []);
 
   // Lightbox keyboard navigation
@@ -755,28 +822,34 @@ export default function SalonBookingPage({
     });
   }, [shop?.id]);
 
-  // Fetch slots when scheduling criteria changes
-  useEffect(() => {
-    if (!selectedBarber || !selectedService || !selectedDate) return;
-    const fetchSlots = async () => {
-      setLoadingSlots(true);
-      try {
-        const res = await api.bookings.getAvailability(
-          selectedBarber.clerkId,
-          selectedService.id,
-          selectedDate
-        );
-        if (res.success) {
-          setAvailableSlots(res.data);
-        }
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoadingSlots(false);
+  const refreshAvailability = useCallback(async () => {
+    if (!selectedBarber || !selectedService || !activeSelectedDate) return;
+    setLoadingSlots(true);
+    setSlotsError("");
+    try {
+      const res = await api.bookings.getAvailability(
+        selectedBarber.clerkId,
+        selectedService.id,
+        activeSelectedDate
+      );
+      if (res.success) {
+        const earliest = getEarliestBookableTime().getTime();
+        const validSlots = res.data.filter((slot) => new Date(slot).getTime() >= earliest);
+        setAvailableSlots(validSlots);
+        setSelectedSlot((current) => (current && validSlots.includes(current) ? current : null));
       }
-    };
-    fetchSlots();
-  }, [selectedBarber, selectedService, selectedDate]);
+    } catch (error: unknown) {
+      setAvailableSlots([]);
+      setSlotsError(error instanceof Error ? error.message : "Unable to load appointment times.");
+    } finally {
+      setLoadingSlots(false);
+    }
+  }, [selectedBarber, selectedService, activeSelectedDate]);
+
+  // Fetch slots when scheduling criteria changes.
+  useEffect(() => {
+    void refreshAvailability(); // eslint-disable-line react-hooks/set-state-in-effect
+  }, [refreshAvailability]);
 
   // Cart Helpers
   const addToCart = (product: Product) => {
@@ -812,6 +885,7 @@ export default function SalonBookingPage({
   const handleStartBooking = (service: Service) => {
     setSelectedService(service);
     setSelectedSlot(null);
+    setSlotNotice("");
     setIsOtpSent(false);
     setOtpCode("");
     setIsNewCustomer(false);
@@ -837,9 +911,21 @@ export default function SalonBookingPage({
   };
 
   const handleSelectSlot = (slot: string) => {
+    if (new Date(slot).getTime() < getEarliestBookableTime().getTime()) {
+      void refreshAvailability();
+      return;
+    }
+    setSlotNotice("");
     setSelectedSlot(slot);
     setStep(4); // OTP Verification
   };
+
+  const handleSlotUnavailable = useCallback(async () => {
+    setSelectedSlot(null);
+    setSlotNotice("This time is no longer available. Please choose another slot.");
+    setStep(3);
+    await refreshAvailability();
+  }, [refreshAvailability]);
 
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -848,7 +934,7 @@ export default function SalonBookingPage({
     setOtpSendError("");
     setSandboxOtp(null);
     try {
-      const res = await api.auth.sendOtp(phone) as any;
+      const res = await api.auth.sendOtp(phone);
       if (res.success) {
         setIsOtpSent(true);
         // Development sandbox: display the OTP in the UI if returned
@@ -856,10 +942,10 @@ export default function SalonBookingPage({
           setSandboxOtp(res.sandboxOtp);
         }
       } else {
-        setOtpSendError(res.error || "Failed to send code. Please try again.");
+        setOtpSendError("Failed to send code. Please try again.");
       }
-    } catch (err: any) {
-      setOtpSendError(err.message || "Failed to send code. Please check your number and try again.");
+    } catch (err: unknown) {
+      setOtpSendError(err instanceof Error ? err.message : "Failed to send code. Please check your number and try again.");
     } finally {
       setIsSendingOtp(false);
     }
@@ -881,10 +967,10 @@ export default function SalonBookingPage({
           setStep(5); // Proceed to Stripe Checkout
         }
       } else {
-        setOtpVerifyError((res as any).error || "Invalid code. Please try again.");
+        setOtpVerifyError("Invalid code. Please try again.");
       }
-    } catch (err: any) {
-      setOtpVerifyError(err.message || "Invalid verification code. Please check and try again.");
+    } catch (err: unknown) {
+      setOtpVerifyError(err instanceof Error ? err.message : "Invalid verification code. Please check and try again.");
     } finally {
       setIsVerifying(false);
     }
@@ -902,10 +988,10 @@ export default function SalonBookingPage({
         setIsNewCustomer(false);
         setStep(5);
       } else {
-        setOtpVerifyError((res as any).error || "Registration failed. Please try again.");
+        setOtpVerifyError("Registration failed. Please try again.");
       }
-    } catch (err: any) {
-      setOtpVerifyError(err.message || "Registration failed. Please check your details and try again.");
+    } catch (err: unknown) {
+      setOtpVerifyError(err instanceof Error ? err.message : "Registration failed. Please check your details and try again.");
     } finally {
       setIsVerifying(false);
     }
@@ -914,6 +1000,7 @@ export default function SalonBookingPage({
   const resetFlow = () => {
     setSelectedService(null);
     setSelectedSlot(null);
+    setSlotNotice("");
     setIsOtpSent(false);
     setOtpCode("");
     setConfirmedBookingId(null);
@@ -1374,16 +1461,19 @@ export default function SalonBookingPage({
 
                       {/* Horizontal Date Picker */}
                       <div className="flex gap-2 overflow-x-auto py-1 scrollbar-none">
-                        {dates.map((d) => {
-                          const dateVal = getLocalDateStr(d);
-                          const isSelected = dateVal === selectedDate;
-                          const dayName = d.toLocaleDateString([], { weekday: "short" });
-                          const dayNum = d.getDate();
+                        {dates.map((dateVal) => {
+                          const isSelected = dateVal === activeSelectedDate;
+                          const displayDate = new Date(`${dateVal}T12:00:00.000Z`);
+                          const dayName = displayDate.toLocaleDateString([], { weekday: "short", timeZone: "UTC" });
+                          const dayNum = displayDate.getUTCDate();
 
                           return (
                             <button
-                              key={d.toISOString()}
-                              onClick={() => setSelectedDate(dateVal)}
+                              key={dateVal}
+                              onClick={() => {
+                                setSelectedDate(dateVal);
+                                setSlotNotice("");
+                              }}
                               className={`flex flex-col items-center justify-center min-w-[56px] h-14 rounded-xl border font-bold text-xs transition-all ${
                                 isSelected
                                   ? "bg-ink text-white border-ink"
@@ -1399,18 +1489,33 @@ export default function SalonBookingPage({
 
                       {/* Slots grid container */}
                       <div className="flex-grow overflow-y-auto">
+                        {slotNotice && (
+                          <div className="mb-3 bg-amber-50 border border-amber-200 text-amber-900 rounded-xl p-3 text-xs font-bold">
+                            {slotNotice}
+                          </div>
+                        )}
                         {loadingSlots ? (
                           <div className="flex items-center justify-center min-h-[150px]">
                             <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
                           </div>
-                        ) : availableSlots.length === 0 ? (
+                        ) : slotsError ? (
                           <div className="card-feature-sage p-8 text-center text-xs font-bold text-body-text border border-ink/5">
-                            No appointment times available on this date.
+                            {slotsError}
+                          </div>
+                        ) : visibleAvailableSlots.length === 0 ? (
+                          <div className="card-feature-sage p-8 text-center text-xs font-bold text-body-text border border-ink/5">
+                            {activeSelectedDate === dates[0]
+                              ? "No more appointments available today. Please choose another date."
+                              : "No appointment times available on this date."}
                           </div>
                         ) : (
                           <div className="grid grid-cols-3 gap-2.5">
-                            {availableSlots.map((slot) => {
-                              const time = new Date(slot).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
+                            {visibleAvailableSlots.map((slot) => {
+                              const time = new Date(slot).toLocaleTimeString([], {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                                timeZone: shopTimeZone,
+                              });
                               return (
                                 <button
                                   key={slot}
@@ -1605,7 +1710,7 @@ export default function SalonBookingPage({
                       <div className="space-y-4">
                         <div className="flex justify-between items-center">
                           <div>
-                            <h3 className="text-lg font-black text-ink">Checkout Deposit</h3>
+                            <h3 className="text-lg font-black text-ink">Checkout</h3>
                             <p className="text-xs text-mute-text">Complete appointment scheduling.</p>
                           </div>
                           <button
@@ -1622,6 +1727,7 @@ export default function SalonBookingPage({
                           selectedBarber={selectedBarber}
                           selectedSlot={selectedSlot}
                           cart={cart}
+                          timeZone={shopTimeZone}
                         />
 
                         {/* Stripe Form */}
@@ -1636,6 +1742,8 @@ export default function SalonBookingPage({
                               setIsPaying={setIsPaying}
                               setConfirmedBookingId={setConfirmedBookingId}
                               setStep={setStep}
+                              onSlotUnavailable={handleSlotUnavailable}
+                              stripeEnabled={stripeEnabled}
                             />
                           </Elements>
                         )}
@@ -1643,7 +1751,11 @@ export default function SalonBookingPage({
 
                       <div className="text-[10px] text-mute-text flex items-center justify-center gap-1.5">
                         <Shield className="w-3.5 h-3.5 text-positive-deep" />
-                        <span>Mock Sandbox Enabled. Enter arbitrary checkout card details.</span>
+                        <span>
+                          {stripeEnabled
+                            ? "Card payments are handled securely by Stripe."
+                            : "Online payment is unavailable. Pay on Arrival is enabled."}
+                        </span>
                       </div>
                     </motion.div>
                   )}
@@ -1681,8 +1793,8 @@ export default function SalonBookingPage({
                         <div className="flex justify-between text-xs">
                           <span className="font-bold text-mute-text">TIME SLOT</span>
                           <span className="font-bold text-ink">
-                            {selectedSlot && new Date(selectedSlot).toLocaleDateString()} at{" "}
-                            {selectedSlot && new Date(selectedSlot).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })}
+                            {selectedSlot && new Date(selectedSlot).toLocaleDateString([], { timeZone: shopTimeZone })} at{" "}
+                            {selectedSlot && new Date(selectedSlot).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", timeZone: shopTimeZone })}
                           </span>
                         </div>
                         {cart.length > 0 && (

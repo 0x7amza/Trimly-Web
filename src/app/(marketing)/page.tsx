@@ -96,6 +96,7 @@ export default function MarketingPage() {
   // Search suggestions filtering — debounced call to /api/v1/search
   useEffect(() => {
     if (!searchQuery.trim()) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSuggestions([]);
       return;
     }
@@ -412,7 +413,7 @@ export default function MarketingPage() {
                     </div>
                   ) : (
                     <div className="p-4 text-center text-xs text-mute-text">
-                      No matching shops or services found. Search for <span className="font-bold text-ink">"Doe"</span> or <span className="font-bold text-ink">"Fade"</span>.
+                      No matching shops or services found. Search for <span className="font-bold text-ink">&quot;Doe&quot;</span> or <span className="font-bold text-ink">&quot;Fade&quot;</span>.
                     </div>
                   )}
                 </div>

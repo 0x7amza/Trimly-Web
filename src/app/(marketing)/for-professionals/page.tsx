@@ -51,7 +51,7 @@ export default function ForProfessionalsPage() {
               </span>
             </h1>
             <p className="text-base text-body-text leading-relaxed">
-              Join the UK's leading local booking directory. Unlock instant
+              Join the UK&apos;s leading local booking directory. Unlock instant
               appointments, client deposits, and custom calendars tailored
               specifically to salon workflows.
             </p>
@@ -199,7 +199,7 @@ export default function ForProfessionalsPage() {
                     <h3 className="text-xl font-black text-ink">Create Your Shop Account</h3>
                   </div>
                   <p className="text-xs text-mute-text font-semibold">
-                    Register as a salon owner. You'll be redirected to set up your shop after sign-up.
+                    Register as a salon owner. You&apos;ll be redirected to set up your shop after sign-up.
                   </p>
                 </div>
                 <SignUp routing="hash" forceRedirectUrl="/dashboard/calendar" />

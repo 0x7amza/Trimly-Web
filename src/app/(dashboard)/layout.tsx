@@ -37,7 +37,8 @@ function CreateShopOnboarding() {
     setLoading(true);
     setError(null);
     try {
-      await api.shops.create(shopName.trim(), country, state);
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+      await api.shops.create(shopName.trim(), country, state, timezone);
       await refreshShopData();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "An unexpected error occurred");
@@ -235,7 +236,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
     );
   }
 
-  const NavContent = () => (
+  const renderNavContent = () => (
     <>
       {allowedNavItems.map((item) => {
         const active = pathname.startsWith(item.path);
@@ -308,7 +309,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
           </div>
           {/* Navigation */}
           <nav className="p-4 space-y-1">
-            <NavContent />
+            {renderNavContent()}
           </nav>
         </div>
       </aside>
@@ -337,7 +338,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
           </button>
         </div>
         <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-          <NavContent />
+          {renderNavContent()}
         </nav>
         {/* Mobile user info */}
         <div className="p-4 border-t border-ink/5 flex items-center gap-3">

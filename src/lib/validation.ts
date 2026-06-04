@@ -1,6 +1,7 @@
 export const objectIdPattern = /^[a-f\d]{24}$/i;
 export const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 export const e164PhonePattern = /^\+[1-9]\d{6,14}$/;
+export const timeOfDayPattern = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 
 export function isObjectId(value: unknown): value is string {
   return typeof value === "string" && objectIdPattern.test(value);
@@ -34,6 +35,47 @@ export function isPositiveInt(value: unknown, min = 1, max = Number.MAX_SAFE_INT
 
 export function isPriceMinorUnit(value: unknown) {
   return isPositiveInt(value, 1, 10_000_000);
+}
+
+export function isTimeOfDay(value: unknown): value is string {
+  return typeof value === "string" && timeOfDayPattern.test(value);
+}
+
+export function isTimeZone(value: unknown): value is string {
+  if (typeof value !== "string" || value.length > 100) return false;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: value }).format();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function isBusinessHours(value: unknown): value is Array<{
+  day: number;
+  open: string;
+  close: string;
+  isClosed: boolean;
+}> {
+  if (!Array.isArray(value) || value.length > 7) return false;
+  const seenDays = new Set<number>();
+
+  return value.every((entry) => {
+    if (!entry || typeof entry !== "object") return false;
+    const hours = entry as { day?: unknown; open?: unknown; close?: unknown; isClosed?: unknown };
+    if (
+      !isPositiveInt(hours.day, 0, 6) ||
+      seenDays.has(hours.day) ||
+      typeof hours.isClosed !== "boolean" ||
+      !isTimeOfDay(hours.open) ||
+      !isTimeOfDay(hours.close)
+    ) {
+      return false;
+    }
+
+    seenDays.add(hours.day);
+    return hours.isClosed || hours.open < hours.close;
+  });
 }
 
 export function sanitizeString(value: unknown, maxLength = 500) {

@@ -21,5 +21,7 @@ const ProductSchema = new Schema<IProduct>(
   { timestamps: true }
 );
 
+ProductSchema.index({ shopId: 1, isActive: 1 });
+
 export const ProductModel: Model<IProduct> =
   mongoose.models.Product || mongoose.model<IProduct>("Product", ProductSchema);

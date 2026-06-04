@@ -3,47 +3,59 @@
 import React, { useState, useEffect } from "react";
 import { useB2BAuth } from "@/components/providers";
 import { api } from "@/lib/api";
-import { useSearchParams } from "next/navigation";
 
 export default function BillingPage() {
-  const { role, shop, allBarbers, refreshShopData } = useB2BAuth();
+  const { role, shop, allBarbers } = useB2BAuth();
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
-  const searchParams = useSearchParams();
+  const [billingEnabled, setBillingEnabled] = useState(false);
+  const [billingError, setBillingError] = useState("");
 
   const handleSubscribe = async (plan: "MONTHLY" | "YEARLY") => {
     setLoadingPlan(plan);
+    setBillingError("");
     try {
       const res = await api.subscriptions.subscribe(plan);
       if (res.success && res.data.sessionUrl) {
-        // If it's a mock redirect (dev mode with no Stripe), refresh shop data first
-        if (res.data.sessionUrl.includes("mock=true")) {
-          await refreshShopData();
-          // No redirect needed — subscription is already active
+        // Only follow a real Stripe Checkout URL returned by the server.
+        if (!res.data.sessionUrl.startsWith("https://checkout.stripe.com/")) {
+          setBillingError("Subscription checkout did not return a valid Stripe URL.");
+          // Refuse unexpected local or placeholder redirects.
           return;
         }
-        // Redirect to Stripe checkout
+        // Redirect to Stripe Checkout.
         window.location.href = res.data.sessionUrl;
       }
-    } catch (err) {
-      console.error(err);
+    } catch (err: unknown) {
+      setBillingError(err instanceof Error ? err.message : "Subscription checkout is unavailable.");
     } finally {
       setLoadingPlan(null);
     }
   };
 
-  // Auto-trigger subscription if arriving from pricing page with ?plan= param
-  useEffect(() => {
-    const planParam = searchParams.get("plan");
-    if (planParam && (planParam === "MONTHLY" || planParam === "YEARLY") && shop && role === "OWNER") {
-      const hasActiveSub = ["ACTIVE"].includes(shop.subscription?.status || "");
-      if (!hasActiveSub) {
-        handleSubscribe(planParam as "MONTHLY" | "YEARLY");
+  const handleBillingPortal = async () => {
+    setLoadingPlan("PORTAL");
+    setBillingError("");
+    try {
+      const res = await api.subscriptions.billingPortal();
+      if (res.success && res.data.portalUrl.startsWith("https://billing.stripe.com/")) {
+        window.location.href = res.data.portalUrl;
+      } else {
+        setBillingError("The billing portal did not return a valid Stripe URL.");
       }
+    } catch (err: unknown) {
+      setBillingError(err instanceof Error ? err.message : "The billing portal is unavailable.");
+    } finally {
+      setLoadingPlan(null);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams, shop, role]);
+  };
 
-  const hasSubscription = shop && ["ACTIVE", "TRIALING"].includes(shop.subscription?.status || "");
+  useEffect(() => {
+    api.config
+      .getPublic()
+      .then((res) => setBillingEnabled(res.success && res.data.subscriptionBillingEnabled))
+      .catch(() => setBillingEnabled(false));
+  }, []);
+
   const activePlan = shop?.subscription?.plan || "NONE";
 
   // Guard: Owner only page
@@ -73,6 +85,18 @@ export default function BillingPage() {
         </div>
 
       </div>
+
+      {!billingEnabled && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-4 py-3 text-sm font-semibold">
+          Online subscription billing is not enabled yet. No plan or billing changes can be made until Stripe is configured.
+        </div>
+      )}
+
+      {billingError && (
+        <div className="bg-negative-bg/5 border border-negative/10 text-negative rounded-xl px-4 py-3 text-sm font-semibold">
+          {billingError}
+        </div>
+      )}
 
       {/* Plan Card */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -133,14 +157,14 @@ export default function BillingPage() {
 
           {shop?.subscription?.status === "ACTIVE" && (
             <div className="pt-6 border-t border-ink/5 mt-8 flex flex-col sm:flex-row gap-3">
-              <a
-                href="https://billing.stripe.com/p/session/mocked_portal"
-                target="_blank"
-                rel="noreferrer"
+              <button
+                type="button"
+                onClick={handleBillingPortal}
+                disabled={!billingEnabled || loadingPlan !== null}
                 className="button-tertiary text-center text-sm"
               >
-                Go to Stripe Customer Portal
-              </a>
+                {loadingPlan === "PORTAL" ? "Opening..." : "Go to Stripe Customer Portal"}
+              </button>
             </div>
           )}
         </div>
@@ -190,7 +214,7 @@ export default function BillingPage() {
               <button
                 onClick={() => handleSubscribe("MONTHLY")}
                 className="button-primary w-full text-center"
-                disabled={loadingPlan !== null}
+                disabled={!billingEnabled || loadingPlan !== null}
               >
                 {loadingPlan === "MONTHLY" ? "Processing..." : "Select Monthly"}
               </button>
@@ -214,7 +238,7 @@ export default function BillingPage() {
               <button
                 onClick={() => handleSubscribe("YEARLY")}
                 className="button-primary w-full text-center"
-                disabled={loadingPlan !== null}
+                disabled={!billingEnabled || loadingPlan !== null}
               >
                 {loadingPlan === "YEARLY" ? "Processing..." : "Select Yearly"}
               </button>

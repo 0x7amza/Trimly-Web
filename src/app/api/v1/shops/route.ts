@@ -3,6 +3,8 @@ import { connectDB } from "@/lib/db";
 import { ShopModel } from "@/lib/models/Shop";
 import { BarberModel } from "@/lib/models/Barber";
 import { requireClerkAuth } from "@/lib/auth";
+import { fail, handleRouteError } from "@/lib/api-response";
+import { isTimeZone, sanitizeString } from "@/lib/validation";
 
 const RESERVED_SLUGS = ["dashboard", "billing", "api", "admin", "settings", "auth", "discover", "tarifs"];
 
@@ -12,12 +14,19 @@ export async function POST(request: NextRequest) {
   if (userIdOrError instanceof NextResponse) return userIdOrError;
 
   try {
-    const { name, country, state } = await request.json();
-    if (!name) {
-      return NextResponse.json({ success: false, error: "Shop name required" }, { status: 400 });
+    const { name, country, state, timezone } = await request.json();
+    const cleanName = sanitizeString(name, 120);
+    const cleanCountry = sanitizeString(country, 80);
+    const cleanState = sanitizeString(state, 120);
+    const cleanTimezone = timezone === undefined ? "UTC" : timezone;
+    if (!cleanName) {
+      return fail("VALIDATION_ERROR", "Shop name required", 400);
     }
-    if (!country || !state) {
-      return NextResponse.json({ success: false, error: "Country and State/Governorate are required" }, { status: 400 });
+    if (!cleanCountry || !cleanState) {
+      return fail("VALIDATION_ERROR", "Country and State/Governorate are required", 400);
+    }
+    if (!isTimeZone(cleanTimezone)) {
+      return fail("VALIDATION_ERROR", "Please choose a valid IANA timezone", 400);
     }
 
     await connectDB();
@@ -25,12 +34,12 @@ export async function POST(request: NextRequest) {
     // One shop per owner
     const existing = await ShopModel.findOne({ ownerId: userIdOrError });
     if (existing) {
-      return NextResponse.json({ success: false, error: "You already have a shop" }, { status: 409 });
+      return fail("CONFLICT", "You already have a shop", 409);
     }
 
-    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+    const slug = cleanName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
     if (RESERVED_SLUGS.includes(slug)) {
-      return NextResponse.json({ success: false, error: "This name conflicts with a reserved system route" }, { status: 400 });
+      return fail("VALIDATION_ERROR", "This name conflicts with a reserved system route", 400);
     }
 
     // Check slug uniqueness
@@ -41,11 +50,12 @@ export async function POST(request: NextRequest) {
     const trialEndsAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
     const shop = await ShopModel.create({
       ownerId: userIdOrError,
-      name,
+      name: cleanName,
       slug: finalSlug,
-      country,
-      state,
-      city: state,
+      country: cleanCountry,
+      state: cleanState,
+      city: cleanState,
+      timezone: cleanTimezone,
       subscription: { plan: "NONE", status: "TRIALING", trialEndsAt },
       maxBarbersIncluded: 5,
     });
@@ -53,7 +63,7 @@ export async function POST(request: NextRequest) {
     // Update the barber record with shopId + OWNER role
     await BarberModel.findOneAndUpdate(
       { clerkId: userIdOrError },
-      { shopId: shop._id, role: "OWNER", slug: finalSlug, shopName: name },
+      { shopId: shop._id, role: "OWNER", slug: finalSlug, shopName: cleanName },
       { upsert: true }
     );
 
@@ -65,6 +75,7 @@ export async function POST(request: NextRequest) {
           ownerId: shop.ownerId,
           name: shop.name,
           slug: shop.slug,
+          timezone: shop.timezone,
           subscription: shop.subscription,
           maxBarbersIncluded: shop.maxBarbersIncluded,
         },
@@ -72,7 +83,6 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     );
   } catch (err) {
-    console.error("[shops POST]", err);
-    return NextResponse.json({ success: false, error: "Failed to create shop" }, { status: 500 });
+    return handleRouteError("shops POST", err);
   }
 }

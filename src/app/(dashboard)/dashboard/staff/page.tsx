@@ -56,7 +56,7 @@ export default function StaffPage() {
           <div className="flex-1 min-w-0">
             <h3 className="font-black text-ink text-base">Invite a Barber to Your Team</h3>
             <p className="text-xs text-mute-text mt-1 leading-relaxed mb-4">
-              Share the link below with your barber. They'll create their own Trimly account
+              Share the link below with your barber. They&apos;ll create their own Trimly account
               and be linked to your salon automatically.
             </p>
 

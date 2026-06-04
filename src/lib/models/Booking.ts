@@ -60,6 +60,7 @@ const BookingSchema = new Schema<IBooking>(
 
 // Index for fast availability lookups
 BookingSchema.index({ barberId: 1, startTime: 1, endTime: 1 });
+BookingSchema.index({ barberId: 1, status: 1, startTime: 1, endTime: 1 });
 
 export const BookingModel: Model<IBooking> =
   mongoose.models.Booking || mongoose.model<IBooking>("Booking", BookingSchema);

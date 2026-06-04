@@ -33,7 +33,8 @@ export default function ServicesPage() {
   };
 
   useEffect(() => {
-    loadServices();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void loadServices();
   }, [activeBarber]);
 
   const handleOpenAdd = () => {

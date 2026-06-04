@@ -18,5 +18,7 @@ const ReviewSchema = new Schema<IReview>(
   { timestamps: { createdAt: true, updatedAt: false } }
 );
 
+ReviewSchema.index({ shopId: 1, createdAt: -1 });
+
 export const ReviewModel: Model<IReview> =
   mongoose.models.Review || mongoose.model<IReview>("Review", ReviewSchema);

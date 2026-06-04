@@ -1,14 +1,16 @@
+import mongoose from "mongoose";
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import { BookingModel } from "@/lib/models/Booking";
-import { ServiceModel } from "@/lib/models/Service";
 import { CustomerModel } from "@/lib/models/Customer";
+import { ServiceModel } from "@/lib/models/Service";
 import { verifyCustomerToken } from "@/lib/auth";
-import mongoose from "mongoose";
-import { fail, handleRouteError } from "@/lib/api-response";
+import { fail, handleRouteError, ok } from "@/lib/api-response";
+import { BookingLockUnavailableError, withBarberBookingLock } from "@/lib/booking-lock";
+import { getBarberSchedule } from "@/lib/booking-schedule";
+import { validateBookingTime } from "@/lib/booking-time";
 import { rateLimit } from "@/lib/rate-limit";
 import { isIsoDateTime, isObjectId, sanitizeString } from "@/lib/validation";
-import { isStripeServerConfigured } from "@/lib/env";
 
 // POST /api/v1/bookings/online
 export async function POST(request: NextRequest) {
@@ -20,34 +22,45 @@ export async function POST(request: NextRequest) {
 
   try {
     const { barberId, serviceId, startTime, paymentOption, notes } = await request.json();
-    if (!barberId || !serviceId || !startTime) {
-      return fail("BAD_REQUEST", "barberId, serviceId, startTime required", 400);
-    }
-    if (typeof barberId !== "string" || !isObjectId(serviceId) || !isIsoDateTime(startTime)) {
-      return fail("BAD_REQUEST", "Valid barberId, serviceId, and startTime are required", 400);
+    if (
+      typeof barberId !== "string" ||
+      !barberId.trim() ||
+      !isObjectId(serviceId) ||
+      !isIsoDateTime(startTime)
+    ) {
+      return fail("VALIDATION_ERROR", "Valid barberId, serviceId, and startTime are required", 400);
     }
     if (paymentOption !== undefined && paymentOption !== "ARRIVE" && paymentOption !== "STRIPE") {
-      return fail("BAD_REQUEST", "Invalid payment option", 400);
+      return fail("VALIDATION_ERROR", "Invalid payment option", 400);
     }
 
     await connectDB();
 
-    const service = await ServiceModel.findById(serviceId).lean();
-    if (!service) {
+    const [service, schedule, customer] = await Promise.all([
+      ServiceModel.findById(serviceId).lean(),
+      getBarberSchedule(barberId),
+      CustomerModel.findById(customerIdOrError).lean(),
+    ]);
+
+    if (!service || !service.isActive) {
       return fail("NOT_FOUND", "Service not found", 404);
     }
-    if (service.barberId !== barberId) {
-      return fail("BAD_REQUEST", "Selected service does not belong to this barber", 400);
+    if (!schedule || service.barberId !== barberId) {
+      return fail("VALIDATION_ERROR", "Selected service does not belong to this barber", 400);
     }
 
-    const start = new Date(startTime);
-    if (start.getTime() < Date.now() - 60_000) {
-      return fail("BAD_REQUEST", "Cannot book an appointment in the past", 400);
+    const validation = validateBookingTime({
+      start: new Date(startTime),
+      durationMinutes: service.durationMinutes,
+      businessHours: schedule.businessHours,
+      timeZone: schedule.timeZone,
+      enforceBuffer: true,
+    });
+    if (!validation.ok) {
+      return fail(validation.code, validation.message, 400);
     }
 
-    const normalizedPaymentOption: "ARRIVE" | "STRIPE" =
-      paymentOption || (isStripeServerConfigured() ? "STRIPE" : "ARRIVE");
-
+    const normalizedPaymentOption: "ARRIVE" | "STRIPE" = paymentOption || "ARRIVE";
     if (normalizedPaymentOption === "STRIPE") {
       return fail(
         "PAYMENT_UNAVAILABLE",
@@ -56,67 +69,64 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const end = new Date(start.getTime() + service.durationMinutes * 60 * 1000);
+    const booking = await withBarberBookingLock(barberId, async () => {
+      const conflict = await BookingModel.findOne({
+        barberId,
+        status: { $ne: "CANCELLED" },
+        startTime: { $lt: validation.end },
+        endTime: { $gt: validation.start },
+      }).lean();
+      if (conflict) return null;
 
-    // Race condition check
-    const conflict = await BookingModel.findOne({
-      barberId,
-      status: { $ne: "CANCELLED" },
-      startTime: { $lt: end },
-      endTime: { $gt: start },
+      return BookingModel.create({
+        barberId,
+        customerId: new mongoose.Types.ObjectId(customerIdOrError),
+        serviceId: new mongoose.Types.ObjectId(serviceId),
+        serviceSnapshot: {
+          name: service.name,
+          price: service.price,
+          durationMinutes: service.durationMinutes,
+        },
+        startTime: validation.start,
+        endTime: validation.end,
+        status: "CONFIRMED",
+        paymentStatus: "PENDING",
+        paymentOption: normalizedPaymentOption,
+        type: "ONLINE",
+        notes: sanitizeString(notes, 1000),
+        customerName: customer?.name || "Online Customer",
+        customerPhone: customer?.phone || "",
+      });
     });
-    if (conflict) {
-      return fail("CONFLICT", "This time slot is no longer available", 409);
+
+    if (!booking) {
+      return fail("SLOT_UNAVAILABLE", "This time is no longer available. Please choose another slot.", 409);
     }
 
-    const customer = await CustomerModel.findById(customerIdOrError).lean();
-
-    const booking = await BookingModel.create({
-      barberId,
-      customerId: new mongoose.Types.ObjectId(customerIdOrError),
-      serviceId: new mongoose.Types.ObjectId(serviceId),
-      serviceSnapshot: {
-        name: service.name,
-        price: service.price,
-        durationMinutes: service.durationMinutes,
-      },
-      startTime: start,
-      endTime: end,
-      status: "CONFIRMED",
-      paymentStatus: "PENDING",
-      paymentOption: normalizedPaymentOption,
-      type: "ONLINE",
-      notes: sanitizeString(notes, 1000),
-      // Snapshot customer details so barber can see name + phone in dashboard
-      customerName: customer?.name || "Online Customer",
-      customerPhone: customer?.phone || "",
-    });
-
-    return NextResponse.json(
+    return ok(
       {
-        success: true,
-        data: {
-          booking: {
-            id: booking._id.toString(),
-            barberId: booking.barberId,
-            customerId: booking.customerId?.toString(),
-            serviceId: booking.serviceId?.toString(),
-            serviceSnapshot: booking.serviceSnapshot,
-            startTime: booking.startTime.toISOString(),
-            endTime: booking.endTime.toISOString(),
-            status: booking.status,
-            paymentStatus: booking.paymentStatus,
-            paymentOption: booking.paymentOption,
-            type: booking.type,
-            notes: booking.notes,
-          },
-          // Stripe clientSecret goes here when real Stripe PaymentIntents are implemented.
-          clientSecret: null,
+        booking: {
+          id: booking._id.toString(),
+          barberId: booking.barberId,
+          customerId: booking.customerId?.toString(),
+          serviceId: booking.serviceId?.toString(),
+          serviceSnapshot: booking.serviceSnapshot,
+          startTime: booking.startTime.toISOString(),
+          endTime: booking.endTime.toISOString(),
+          status: booking.status,
+          paymentStatus: booking.paymentStatus,
+          paymentOption: booking.paymentOption,
+          type: booking.type,
+          notes: booking.notes,
         },
+        clientSecret: null,
       },
-      { status: 201 }
+      201
     );
-  } catch (err) {
-    return handleRouteError("bookings/online", err);
+  } catch (error) {
+    if (error instanceof BookingLockUnavailableError) {
+      return fail("SLOT_UNAVAILABLE", error.message, 409);
+    }
+    return handleRouteError("bookings/online", error);
   }
 }

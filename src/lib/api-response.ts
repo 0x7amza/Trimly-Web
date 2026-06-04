@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 
 export type ApiErrorCode =
   | "BAD_REQUEST"
+  | "VALIDATION_ERROR"
+  | "PAST_BOOKING"
+  | "SLOT_UNAVAILABLE"
   | "UNAUTHORIZED"
   | "FORBIDDEN"
   | "NOT_FOUND"

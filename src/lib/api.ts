@@ -12,7 +12,7 @@ import type {
   Booking,
   Product
 } from "@/types/api";
-import { getClientErrorMessage } from "@/lib/api-error";
+import { ApiRequestError, getClientErrorCode, getClientErrorMessage } from "@/lib/api-error";
 
 export type {
   BusinessHours,
@@ -94,16 +94,18 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
   if (!response.ok) {
     const message = getClientErrorMessage(data);
+    const code = getClientErrorCode(data);
 
     if (process.env.NODE_ENV !== "production") {
-      console.error(
+      const log = response.status >= 500 ? console.error : console.warn;
+      log(
         `[api] Request failed: ${method} ${path}\n` +
         `  Status: ${response.status}\n` +
         `  Error: ${message}`
       );
     }
 
-    throw new Error(message);
+    throw new ApiRequestError(message, response.status, code);
   }
 
   return data;
@@ -114,10 +116,25 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 // ──────────────────────────────────────────────────────────────────
 export const api = {
 
+  config: {
+    getPublic: () =>
+      request<{
+        success: boolean;
+        data: {
+          stripeConfigured: boolean;
+          onlinePaymentsEnabled: boolean;
+          subscriptionBillingEnabled: boolean;
+          bookingBufferMinutes: number;
+        };
+      }>(
+        "/config/public"
+      ),
+  },
+
   // 1. AUTHENTICATION (B2C Customers)
   auth: {
     sendOtp: (phone: string) =>
-      request<{ success: boolean; message: string }>("/auth/customer/send-otp", {
+      request<{ success: boolean; message: string; sandboxOtp?: string }>("/auth/customer/send-otp", {
         method: "POST",
         body: JSON.stringify({ phone }),
       }),
@@ -244,10 +261,10 @@ export const api = {
 
   // 5. SHOPS
   shops: {
-    create: (name: string, country: string, state: string) =>
+    create: (name: string, country: string, state: string, timezone?: string) =>
       request<{ success: boolean; data: Shop }>("/shops", {
         method: "POST",
-        body: JSON.stringify({ name, country, state }),
+        body: JSON.stringify({ name, country, state, timezone }),
       }),
 
     getMe: () =>

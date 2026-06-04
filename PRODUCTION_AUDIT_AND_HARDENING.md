@@ -19,6 +19,9 @@ This pass implemented the highest-risk fixes first:
 - Fixed product creation membership checks for `/shops/[slug]/products`.
 - Persisted product-cart notes into online booking creation.
 - Aligned dashboard calendar slots with `Shop.businessHours`.
+- Added shop timezone support and a configurable 15-minute online booking buffer.
+- Filtered expired same-day availability and added clean slot-expired checkout recovery.
+- Added a Mongo-backed per-barber booking creation lock before final overlap checks.
 - Added `/api/v1/health`.
 - Updated `.env.example` with missing production variables.
 - Added baseline security headers in `next.config.ts`.
@@ -44,7 +47,7 @@ This pass implemented the highest-risk fixes first:
 - Risk: Critical
 - Problem: Stripe-related routes could pretend work was complete or skip verification.
 - Why it matters: Users could be marked subscribed/booked/paid without real payment verification.
-- Fix strategy: Development mock mode only; production returns explicit JSON errors until real Stripe code is added.
+- Fix strategy: Booking payments, subscription checkout, and billing portal routes return explicit JSON errors until real Stripe code is added. No route marks payment or subscription work complete without Stripe.
 - Status: Partially fixed; real Stripe integration remains deferred.
 
 ### Product shop membership bypass
@@ -78,6 +81,19 @@ This pass implemented the highest-risk fixes first:
 
 ## 3. Booking And Scheduling Issues
 
+### Past slots shown for today
+
+- Files:
+  - `src/lib/booking-time.ts`
+  - `src/app/api/v1/bookings/barber/[clerkId]/availability/route.ts`
+  - `src/app/api/v1/bookings/online/route.ts`
+  - `src/app/[salonSlug]/SalonBookingPage.tsx`
+- Risk: High
+- Problem: Availability generated all business-hour slots without filtering against the current time, while booking creation rejected past timestamps.
+- Why it matters: Customers could select an invalid appointment and only discover it at checkout.
+- Fix strategy: Generate slots in the shop timezone, round `now + booking buffer` up to the next 15-minute interval, filter expired slots on server and client, and refresh availability after slot-related booking errors.
+- Status: Fixed.
+
 ### Fake/unfinished card payment path
 
 - Files:
@@ -102,18 +118,18 @@ This pass implemented the highest-risk fixes first:
 
 - Files: Booking model/routes.
 - Risk: High
-- Problem: Conflict checks happen before insert but no database-level lock/transaction exists.
+- Problem: Conflict checks happened before insert with no cross-request serialization.
 - Why it matters: Two concurrent requests can still race.
-- Fix strategy: Add stricter server validation now; next step is Mongo transaction or slot-lock strategy.
-- Status: Not fully fixed.
+- Fix strategy: Acquire a short Mongo-backed per-barber lock, then recheck all non-cancelled overlaps immediately before insert.
+- Status: Fixed for booking creation routes; load testing is still recommended.
 
 ## 4. Payment/Stripe Readiness Issues
 
 - Risk: Critical
 - Current state: Stripe is guarded but not production-implemented.
 - Fixed:
-  - No production mock subscription activation.
-  - No production fake billing portal URL.
+  - No mock subscription activation.
+  - No fake billing portal URL.
   - No production webhook verification skipping.
   - No online customer card checkout without real backend support.
 - Deferred:
@@ -149,8 +165,8 @@ This pass implemented the highest-risk fixes first:
 - Files: Mongoose models.
 - Risk: Medium
 - Problem: Some high-traffic query patterns lack compound indexes.
-- Fix strategy: Add indexes for search, products, reviews, service availability, customer auth in a model migration pass.
-- Status: Not fixed in this pass.
+- Fix strategy: Added targeted compound indexes for booking availability, services, products, reviews, shops, and barber lookup.
+- Status: Partially fixed; monitor query plans before adding more indexes.
 
 ### Product cart not persisted
 
@@ -169,7 +185,7 @@ This pass implemented the highest-risk fixes first:
 - File: `src/app/[salonSlug]/SalonBookingPage.tsx`
 - Risk: High
 - Problem: UI advertised card payment without real configuration.
-- Fix strategy: Hide card option unless public Stripe key exists; server still blocks until backend is real.
+- Fix strategy: Added `/api/v1/config/public` with separate configuration and feature-enabled flags. Card payment and subscription UI stay hidden/disabled until their real backend flows are implemented, even if keys are later added.
 - Status: Fixed.
 
 ### Homepage search city handoff
@@ -221,7 +237,7 @@ Status: Partially fixed.
 - `npx tsc --noEmit --pretty false` passes.
 - `npm run build` passes.
 - Scoped ESLint for the hardened server/API files passes.
-- Full `npm run lint` still fails with 50 errors and 68 warnings on existing client/page lint debt, including React `set-state-in-effect` findings and older `any` usage outside the hardened API set.
+- Full `npm run lint` passes with 61 warning-only findings, mainly existing `<img>` optimization and hook dependency cleanup.
 - Suggested test foundation:
   - Unit tests for validation helpers.
   - Unit tests for map URL normalization.

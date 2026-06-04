@@ -3,14 +3,24 @@
 import React, { useState, useEffect } from "react";
 import { api, Booking, Service } from "@/lib/api";
 import { useB2BAuth } from "@/components/providers";
+import { ApiRequestError } from "@/lib/api-error";
+import {
+  addDaysToDateString,
+  formatDateInTimeZone,
+  getDateRangeInTimeZone,
+  getDayOfWeekForDateString,
+  normalizeTimeZone,
+  zonedDateTimeToUtc,
+} from "@/lib/booking-time";
 
 export default function CalendarPage() {
   const { activeBarber, shop } = useB2BAuth();
+  const shopTimeZone = normalizeTimeZone(shop?.timezone);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [services, setServices] = useState<Service[]>([]);
-  const [selectedDate, setSelectedDate] = useState<string>(() => {
-    return new Date().toISOString().split("T")[0]; // YYYY-MM-DD
-  });
+  const [selectedDate, setSelectedDate] = useState("");
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  const activeSelectedDate = selectedDate || formatDateInTimeZone(new Date(nowMs), shopTimeZone);
   const [isLoading, setIsLoading] = useState(true);
 
   // Modal States
@@ -23,6 +33,7 @@ export default function CalendarPage() {
   const [notes, setNotes] = useState("");
   const [blockDuration, setBlockDuration] = useState(30); // in minutes
   const [blockReason, setBlockReason] = useState("");
+  const [quickAddError, setQuickAddError] = useState("");
 
   // Details Modal
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
@@ -37,8 +48,13 @@ export default function CalendarPage() {
       const servicesRes = await api.services.getBarberServices(activeBarber.clerkId);
 
       if (bookingsRes.success) {
-        // Filter locally by selected date in YYYY-MM-DD format
-        const dayBookings = bookingsRes.data.filter(b => b.startTime.startsWith(selectedDate));
+        const dayRange = getDateRangeInTimeZone(activeSelectedDate, shopTimeZone);
+        const dayBookings = dayRange
+          ? bookingsRes.data.filter((booking) => {
+              const start = new Date(booking.startTime).getTime();
+              return start >= dayRange.start.getTime() && start < dayRange.end.getTime();
+            })
+          : [];
         setBookings(dayBookings);
       }
       if (servicesRes.success) {
@@ -55,16 +71,21 @@ export default function CalendarPage() {
   };
 
   useEffect(() => {
-    loadData();
-  }, [activeBarber, selectedDate]);
+    loadData(); // eslint-disable-line react-hooks/set-state-in-effect
+  }, [activeBarber, activeSelectedDate, shopTimeZone]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNowMs(Date.now()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const getSelectedBusinessHours = () => {
     const hours = shop?.businessHours;
     if (!hours || hours.length === 0) {
-      return { day: new Date(`${selectedDate}T00:00:00.000Z`).getUTCDay(), open: "09:00", close: "18:00", isClosed: false };
+      return { day: getDayOfWeekForDateString(activeSelectedDate), open: "09:00", close: "18:00", isClosed: false };
     }
 
-    const day = new Date(`${selectedDate}T00:00:00.000Z`).getUTCDay();
+    const day = getDayOfWeekForDateString(activeSelectedDate);
     return hours.find((h) => h.day === day) || { day, open: "09:00", close: "18:00", isClosed: false };
   };
 
@@ -88,11 +109,12 @@ export default function CalendarPage() {
   };
 
   const slots = generateTimeSlots();
+  const getSlotStart = (timeStr: string) => zonedDateTimeToUtc(activeSelectedDate, timeStr, shopTimeZone);
 
   // Find booking that starts at or spans across a given slot
   const getBookingForSlot = (timeStr: string) => {
-    const slotTimeStr = `${selectedDate}T${timeStr}:00.000Z`;
-    const slotTime = new Date(slotTimeStr).getTime();
+    const slotTime = getSlotStart(timeStr)?.getTime();
+    if (slotTime === undefined) return undefined;
 
     return bookings.find(b => {
       const bStart = new Date(b.startTime).getTime();
@@ -103,8 +125,8 @@ export default function CalendarPage() {
 
   // Check if slot is the start of a booking (so we render the badge only once)
   const isSlotStartOfBooking = (timeStr: string, booking: Booking) => {
-    const slotTimeStr = `${selectedDate}T${timeStr}:00.000Z`;
-    const slotTime = new Date(slotTimeStr).getTime();
+    const slotTime = getSlotStart(timeStr)?.getTime();
+    if (slotTime === undefined) return false;
     const bStart = new Date(booking.startTime).getTime();
     // Allow 5s variance for parsing
     return Math.abs(slotTime - bStart) < 5000;
@@ -115,8 +137,11 @@ export default function CalendarPage() {
       setSelectedBooking(existingBooking);
       setIsDetailsOpen(true);
     } else {
+      const slotStart = getSlotStart(timeStr);
+      if (!slotStart || slotStart.getTime() < nowMs) return;
       setSelectedSlot(timeStr);
       setBookingMode("WALKIN");
+      setQuickAddError("");
       setIsQuickAddOpen(true);
     }
   };
@@ -124,13 +149,16 @@ export default function CalendarPage() {
   const handleQuickAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedSlot) return;
+    setQuickAddError("");
 
     try {
-      const startTime = `${selectedDate}T${selectedSlot}:00.000Z`;
+      const slotStart = getSlotStart(selectedSlot);
+      if (!slotStart) return;
+      const startTime = slotStart.toISOString();
       let res;
       if (bookingMode === "BLOCK") {
         res = await api.bookings.createManual({
-          serviceId: selectedServiceId || (services[0]?.id || ""),
+          serviceId: "blocked",
           startTime,
           notes: `[BLOCKED] ${blockReason || "Blocked slot"}`,
           durationMinutes: blockDuration,
@@ -156,8 +184,15 @@ export default function CalendarPage() {
         setIsQuickAddOpen(false);
         loadData(); // reload
       }
-    } catch (err) {
-      alert("Error adding booking: Time slot may be overlapping.");
+    } catch (error: unknown) {
+      setQuickAddError(
+        error instanceof ApiRequestError && ["PAST_BOOKING", "SLOT_UNAVAILABLE"].includes(error.code || "")
+          ? "This time is no longer available. Please choose another slot."
+          : error instanceof Error
+          ? error.message
+          : "Unable to add this booking."
+      );
+      await loadData();
     }
   };
 
@@ -190,9 +225,7 @@ export default function CalendarPage() {
         <div className="flex items-center gap-3">
           <button
             onClick={() => {
-              const prev = new Date(selectedDate);
-              prev.setDate(prev.getDate() - 1);
-              setSelectedDate(prev.toISOString().split("T")[0]);
+              setSelectedDate(addDaysToDateString(activeSelectedDate, -1));
             }}
             className="button-secondary !p-3 rounded-full"
           >
@@ -200,15 +233,13 @@ export default function CalendarPage() {
           </button>
           <input
             type="date"
-            value={selectedDate}
+            value={activeSelectedDate}
             onChange={(e) => setSelectedDate(e.target.value)}
             className="text-input font-bold"
           />
           <button
             onClick={() => {
-              const next = new Date(selectedDate);
-              next.setDate(next.getDate() + 1);
-              setSelectedDate(next.toISOString().split("T")[0]);
+              setSelectedDate(addDaysToDateString(activeSelectedDate, 1));
             }}
             className="button-secondary !p-3 rounded-full"
           >
@@ -243,12 +274,16 @@ export default function CalendarPage() {
             const booking = getBookingForSlot(timeStr);
             const isStart = booking ? isSlotStartOfBooking(timeStr, booking) : false;
             const isBlocked = booking?.notes?.startsWith("[BLOCKED]") || booking?.serviceSnapshot?.name === "Blocked Time";
+            const slotStart = getSlotStart(timeStr);
+            const isPastEmptySlot = !booking && Boolean(slotStart && slotStart.getTime() < nowMs);
 
             return (
               <div
                 key={timeStr}
                 onClick={() => handleSlotClick(timeStr, booking)}
-                className="flex min-h-[56px] transition-colors hover:bg-canvas-soft/30 cursor-pointer"
+                className={`flex min-h-[56px] transition-colors ${
+                  isPastEmptySlot ? "bg-canvas-soft/20 cursor-not-allowed" : "hover:bg-canvas-soft/30 cursor-pointer"
+                }`}
               >
                 {/* Hour Label */}
                 <div className="w-20 px-4 py-3 text-xs font-bold text-mute-text border-r border-ink/5 flex items-center justify-end">
@@ -291,14 +326,16 @@ export default function CalendarPage() {
                           </span>
                         </div>
                         <span className="text-xs opacity-75 mt-1">
-                          {new Date(booking.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })} -{" "}
-                          {new Date(booking.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })}
+                          {new Date(booking.startTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", timeZone: shopTimeZone })} -{" "}
+                          {new Date(booking.endTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", timeZone: shopTimeZone })}
                         </span>
                       </div>
                     ) : null
                   ) : (
-                    <div className="w-full h-full flex items-center px-4 text-xs text-mute-text opacity-0 hover:opacity-100 font-semibold transition-opacity">
-                      + Click to Quick-Add Booking / Block Time
+                    <div className={`w-full h-full flex items-center px-4 text-xs text-mute-text font-semibold transition-opacity ${
+                      isPastEmptySlot ? "opacity-60" : "opacity-0 hover:opacity-100"
+                    }`}>
+                      {isPastEmptySlot ? "Past time" : "+ Click to Quick-Add Booking / Block Time"}
                     </div>
                   )}
                 </div>
@@ -352,6 +389,11 @@ export default function CalendarPage() {
             </div>
 
             <form onSubmit={handleQuickAddSubmit} className="space-y-4">
+              {quickAddError && (
+                <div className="bg-red-50 border border-red-200 text-red-900 rounded-xl p-3 text-xs font-bold">
+                  {quickAddError}
+                </div>
+              )}
               {bookingMode === "WALKIN" ? (
                 <>
                   <div className="space-y-1.5">
@@ -575,7 +617,7 @@ export default function CalendarPage() {
                     Start Time
                   </span>
                   <span className="text-xs font-bold text-ink bg-canvas-soft px-2.5 py-1 rounded-md inline-block">
-                    {new Date(selectedBooking.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })}
+                    {new Date(selectedBooking.startTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", timeZone: shopTimeZone })}
                   </span>
                 </div>
                 <div>
@@ -583,7 +625,7 @@ export default function CalendarPage() {
                     End Time
                   </span>
                   <span className="text-xs font-bold text-ink bg-canvas-soft px-2.5 py-1 rounded-md inline-block">
-                    {new Date(selectedBooking.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })}
+                    {new Date(selectedBooking.endTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", timeZone: shopTimeZone })}
                   </span>
                 </div>
               </div>

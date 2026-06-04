@@ -51,6 +51,7 @@ export interface IShop extends Document {
   state?: string;
   city?: string;
   address?: string;
+  timezone: string;
   businessHours?: Array<{ day: number; open: string; close: string; isClosed: boolean }>;
 }
 
@@ -71,10 +72,13 @@ const ShopSchema = new Schema<IShop>(
     state: String,
     city: String,
     address: String,
+    timezone: { type: String, default: "UTC" },
     businessHours: [BusinessHoursSchema],
   },
   { timestamps: true }
 );
+
+ShopSchema.index({ country: 1, state: 1, city: 1 });
 
 export const ShopModel: Model<IShop> =
   mongoose.models.Shop || mongoose.model<IShop>("Shop", ShopSchema);

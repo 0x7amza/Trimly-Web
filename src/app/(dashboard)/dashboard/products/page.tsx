@@ -20,7 +20,7 @@ const inputCls =
   "w-full bg-canvas border border-ink/10 rounded-xl py-3 px-4 text-xs font-bold text-ink placeholder:text-mute-text/40 focus:outline-none focus:border-ink transition-colors shadow-sm";
 
 export default function ProductsPage() {
-  const { activeBarber, shop } = useB2BAuth();
+  const { shop } = useB2BAuth();
   const shopId = shop?.id || "";
 
   const [products, setProducts] = useState<Product[]>([]);
@@ -48,15 +48,16 @@ export default function ProductsPage() {
     try {
       const res = await api.products.getShopProducts(shopId);
       if (res.success) setProducts(res.data);
-    } catch (err: any) {
-      setError(err.message || "Failed to load products.");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to load products.");
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    loadProducts();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void loadProducts();
   }, [shopId]);
 
   const openAdd = () => {
@@ -86,8 +87,8 @@ export default function ProductsPage() {
       const compressed = await compressImage(file);
       const res = await api.upload(compressed);
       if (res.success) setImageUrl(res.data.url);
-    } catch (err: any) {
-      setError(err.message || "Image upload failed.");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Image upload failed.");
     } finally {
       setUploading(false);
     }
@@ -131,8 +132,8 @@ export default function ProductsPage() {
           flash("Product added to marketplace.");
         }
       }
-    } catch (err: any) {
-      setError(err.message || "Failed to save product.");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to save product.");
     } finally {
       setSaving(false);
     }
@@ -146,8 +147,8 @@ export default function ProductsPage() {
         setProducts((prev) => prev.filter((p) => p.id !== prod.id));
         flash("Product removed.");
       }
-    } catch (err: any) {
-      setError(err.message || "Delete failed.");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Delete failed.");
     }
   };
 

@@ -41,9 +41,13 @@ Minimum local variables:
 - `CLERK_SECRET_KEY`
 - `CUSTOMER_JWT_SECRET`
 
+Optional booking configuration:
+
+- `NEXT_PUBLIC_BOOKING_BUFFER_MINUTES=15`
+
 Twilio is optional locally. If Twilio credentials are missing, OTP routes use a development sandbox response.
 
-Stripe is optional locally. Production card payments, subscriptions, billing portal sessions, and webhook verification are blocked until the real Stripe server implementation is completed.
+Stripe is optional locally. Card payments, subscription checkout, and billing portal sessions are disabled until the real Stripe server implementation is completed. Production webhook verification is also blocked until it is implemented.
 
 ## Scripts
 
@@ -59,14 +63,14 @@ Current verification status:
 - `npx tsc --noEmit --pretty false`: passes.
 - `npm run build`: passes.
 - Scoped lint for the hardened server/API files: passes.
-- Full `npm run lint`: still fails with 50 errors and 68 warnings on existing React/Next lint debt in client dashboard/public pages and older `any` usage outside the hardened API set.
+- Full `npm run lint`: passes with 61 warning-only findings, mainly existing `<img>` optimization and hook dependency cleanup.
 
 ## Production Checklist
 
 - Set strong production secrets, especially `CUSTOMER_JWT_SECRET`.
 - Use durable upload storage instead of `public/uploads`.
 - Implement real Stripe PaymentIntent, Checkout Session, Billing Portal, and webhook `constructEvent` flows before enabling card payments/subscriptions.
-- Add booking transaction/slot-lock protection for concurrent double-booking races.
+- Open dashboard Settings and confirm the correct IANA salon timezone, especially for shops created before timezone support was added.
 - Tie reviews to verified completed bookings or add stronger abuse controls.
 - Update OpenAPI/docs after API contract cleanup is finished.
 - Add automated tests for auth, booking, product RBAC, uploads, payments, and search.
