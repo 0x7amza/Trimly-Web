@@ -15,6 +15,7 @@ interface B2BAuthContextType {
   /** Call to retry after a sync error */
   retrySync: () => void;
   refreshShopData: () => Promise<void>;
+  billingEnabled: boolean;
 }
 
 const B2BAuthContext = createContext<B2BAuthContextType | undefined>(undefined);
@@ -27,6 +28,7 @@ export function B2BProviders({ children }: { children: React.ReactNode }) {
   const [role, setRole] = useState<"OWNER" | "BARBER">("OWNER");
   const [isLoading, setIsLoading] = useState(true);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [billingEnabled, setBillingEnabled] = useState(false);
 
   const loadData = useCallback(async () => {
     if (!isClerkLoaded || !user) return;
@@ -64,15 +66,20 @@ export function B2BProviders({ children }: { children: React.ReactNode }) {
 
       // Try to load shop data — failing here is not fatal (new user has no shop yet)
       try {
-        const shopRes = await api.shops.getMe();
+        const [shopRes, configRes] = await Promise.all([
+          api.shops.getMe(),
+          api.config.getPublic().catch(() => ({ success: false, data: { subscriptionBillingEnabled: false } })),
+        ]);
         if (shopRes.success) {
           setShop(shopRes.data.shop);
           setAllBarbers(shopRes.data.barbers);
         }
+        setBillingEnabled(configRes.success && !!configRes.data?.subscriptionBillingEnabled);
       } catch {
         // New user — no shop yet. This is expected and not an error state.
         setShop(null);
         setAllBarbers([]);
+        setBillingEnabled(false);
       }
     } catch (err) {
       const message =
@@ -126,6 +133,7 @@ export function B2BProviders({ children }: { children: React.ReactNode }) {
         syncError,
         retrySync,
         refreshShopData,
+        billingEnabled,
       }}
     >
       {children}

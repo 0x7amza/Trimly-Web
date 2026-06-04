@@ -36,7 +36,10 @@ export function isStripeClientConfigured() {
 }
 
 export function isStripeConfigured() {
-  return isStripeServerConfigured() && isStripeClientConfigured();
+  return Boolean(
+    process.env.STRIPE_SECRET_KEY &&
+    process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+  );
 }
 
 export function assertStripeConfiguredForProduction(featureName: string) {

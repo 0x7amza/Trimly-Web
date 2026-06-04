@@ -58,7 +58,7 @@ const DEFAULT_BUSINESS_HOURS = [
 
 // Location map component — Google Maps embed or Leaflet/OSM fallback
 function LocationMap({ address, mapUrl }: { address: string; mapUrl?: string }) {
-  const embedUrl = mapUrl ? getEmbeddableMapUrl(mapUrl) : "";
+  const embedUrl = getEmbeddableMapUrl(mapUrl, address);
 
   if (embedUrl) {
     return (
@@ -69,6 +69,7 @@ function LocationMap({ address, mapUrl }: { address: string; mapUrl?: string }) 
           height="100%"
           style={{ border: 0 }}
           loading="lazy"
+          allowFullScreen
           referrerPolicy="no-referrer-when-downgrade"
           src={embedUrl}
         />
@@ -76,79 +77,15 @@ function LocationMap({ address, mapUrl }: { address: string; mapUrl?: string }) 
     );
   }
 
-  const query = address?.trim() || "";
-
-  if (!query) {
-    return (
-      <div className="relative h-48 w-full bg-canvas-soft border border-ink/5 rounded-2xl overflow-hidden flex items-center justify-center shadow-inner">
-        <div className="flex flex-col items-center gap-2 text-mute-text">
-          <MapPin className="w-8 h-8 opacity-30" />
-          <span className="text-xs font-bold opacity-50">Location not set</span>
-        </div>
-      </div>
-    );
-  }
-
-  const srcDoc = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="utf-8" />
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-      <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-      <style>
-        body, html, #map { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; }
-        .leaflet-popup-content-wrapper { border-radius: 12px; font-family: sans-serif; font-size: 12px; font-weight: bold; }
-      </style>
-    </head>
-    <body>
-      <div id="map"></div>
-      <script>
-        var query = decodeURIComponent("${encodeURIComponent(query)}");
-        var map = L.map('map', { zoomControl: true, scrollWheelZoom: false }).setView([54.5, -4], 6);
-        
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          attribution: '&copy; OpenStreetMap'
-        }).addTo(map);
-
-        var cleanQuery = query.replace(/\\s+/g, '');
-        var coords = cleanQuery.split(',');
-        if (coords.length === 2 && !isNaN(parseFloat(coords[0])) && !isNaN(parseFloat(coords[1]))) {
-          var lat = parseFloat(coords[0]);
-          var lng = parseFloat(coords[1]);
-          map.setView([lat, lng], 15);
-          L.marker([lat, lng]).addTo(map).bindPopup(query).openPopup();
-        } else {
-          var url = 'https://nominatim.openstreetmap.org/search?format=json&q=' + encodeURIComponent(query);
-          fetch(url, { headers: { 'User-Agent': 'TrimlyBookingApp/1.0' } })
-            .then(function(r) { return r.json(); })
-            .then(function(data) {
-              if (data && data.length > 0) {
-                var lat = parseFloat(data[0].lat);
-                var lon = parseFloat(data[0].lon);
-                map.setView([lat, lon], 15);
-                L.marker([lat, lon]).addTo(map).bindPopup(query).openPopup();
-              }
-            }).catch(function(e) {
-              console.error(e);
-            });
-        }
-      </script>
-    </body>
-    </html>
-  `;
-
   return (
-    <div className="relative h-48 w-full rounded-2xl overflow-hidden border border-ink/10 shadow-sm bg-canvas-soft">
-      <iframe
-        title="Interactive Map"
-        width="100%"
-        height="100%"
-        style={{ border: 0 }}
-        loading="lazy"
-        srcDoc={srcDoc}
-      />
+    <div className="relative h-48 w-full bg-canvas border border-ink/5 rounded-2xl overflow-hidden flex flex-col items-center justify-center p-6 text-center shadow-xs">
+      <div className="w-10 h-10 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center mb-3">
+        <MapPin className="w-5 h-5" />
+      </div>
+      <p className="text-xs font-bold text-ink leading-normal">موقع الصالون غير محدد</p>
+      <p className="text-[10px] text-mute-text leading-relaxed max-w-xs mt-1">
+        لم يتم إعداد الخريطة لهذا الصالون بعد.
+      </p>
     </div>
   );
 }
@@ -1296,7 +1233,15 @@ export default function SalonBookingPage({
               {address && (
                 <div className="flex items-start gap-2 pt-1">
                   <MapPin className="w-3.5 h-3.5 text-mute-text mt-0.5 flex-shrink-0" />
-                  <p className="text-xs text-body-text font-semibold leading-snug">{address}</p>
+                  <div className="space-y-0.5">
+                    <span className="block text-xs font-extrabold text-ink">{shop?.name}</span>
+                    <p className="text-xs text-body-text font-semibold leading-snug">{address}</p>
+                    {(shop?.city || shop?.country) && (
+                      <p className="text-[10px] text-mute-text font-bold uppercase tracking-wider">
+                        {[shop.city, shop.country].filter(Boolean).join(" • ")}
+                      </p>
+                    )}
+                  </div>
                 </div>
               )}
             </div>

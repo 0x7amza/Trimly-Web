@@ -11,6 +11,7 @@ import { getBarberSchedule } from "@/lib/booking-schedule";
 import { validateBookingTime } from "@/lib/booking-time";
 import { rateLimit } from "@/lib/rate-limit";
 import { isIsoDateTime, isObjectId, sanitizeString } from "@/lib/validation";
+import { isStripeConfigured } from "@/lib/env";
 
 // POST /api/v1/bookings/online
 export async function POST(request: NextRequest) {
@@ -61,7 +62,7 @@ export async function POST(request: NextRequest) {
     }
 
     const normalizedPaymentOption: "ARRIVE" | "STRIPE" = paymentOption || "ARRIVE";
-    if (normalizedPaymentOption === "STRIPE") {
+    if (normalizedPaymentOption === "STRIPE" && !isStripeConfigured()) {
       return fail(
         "PAYMENT_UNAVAILABLE",
         "Online card payment is not enabled yet. Please choose Pay on Arrival.",

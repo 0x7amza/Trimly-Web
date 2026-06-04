@@ -4,10 +4,11 @@ import { isStripeConfigured } from "@/lib/env";
 
 // GET /api/v1/config/public
 export async function GET() {
+  const stripeOk = isStripeConfigured();
   return ok({
-    stripeConfigured: isStripeConfigured(),
-    onlinePaymentsEnabled: false,
-    subscriptionBillingEnabled: false,
+    stripeConfigured: stripeOk,
+    onlinePaymentsEnabled: stripeOk,
+    subscriptionBillingEnabled: stripeOk,
     bookingBufferMinutes: getBookingBufferMinutes(),
   });
 }

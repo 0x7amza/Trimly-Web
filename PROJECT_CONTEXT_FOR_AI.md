@@ -292,9 +292,10 @@ All implemented under `src/app/api/v1`.
 - `POST /api/v1/barbers/sync`
   - Clerk auth required.
   - Body: `{ name, email, shopId? }`.
-  - Creates or updates local Barber.
-  - If a pending barber record exists by email, claims it with real Clerk id.
-  - Drops old `slug_1` index if present every call.
+  - Idempotently creates or updates the local Barber by unique Clerk id.
+  - Recovers from concurrent first-sign-in sync requests instead of returning a duplicate-key 500.
+  - If a `pending_*` or legacy pending barber record exists by email, claims it with the real Clerk id.
+  - A valid invite shop is only attached when the barber is not already linked to a shop.
 
 - `GET /api/v1/barbers/me`
   - Clerk/local barber required.
@@ -701,7 +702,6 @@ These are important for future work:
 - Public product cart is only persisted into booking `notes`, not as normalized product line items.
 - Bookings are stored as UTC timestamps and the public booking/dashboard calendar use `Shop.timezone`. Existing shops must confirm their timezone in Settings because missing values fall back to `UTC`.
 - Category pages other than `/barber` currently show no shops because category matching is hardcoded to `"barber"`.
-- `barbers/sync` attempts to drop the old `slug_1` index on every sync call.
 - Some older comments/docs mention WhatsApp automation, but implemented OTP is SMS via Twilio Messages API and booking confirmations are not fully implemented.
 
 ## 16. Good Mental Model For Changes

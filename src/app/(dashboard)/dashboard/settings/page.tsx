@@ -18,8 +18,10 @@ import {
   Sparkles,
   Upload,
   MapPin,
+  Map,
   Clock,
   Globe,
+  AlertTriangle,
 } from "lucide-react";
 
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -314,6 +316,7 @@ export default function SettingsPage() {
                  onChange={(val) => {
                    setCountry(val);
                    setState("");
+                   setCity("");
                  }}
                  options={COUNTRY_OPTIONS}
                  placeholder="Select Country..."
@@ -335,59 +338,138 @@ export default function SettingsPage() {
                />
              </div>
 
+             <div className="space-y-1.5">
+               <label className="block text-[10px] font-bold uppercase tracking-wider text-body-text">
+                 City / Town *
+               </label>
+               <input
+                 type="text"
+                 placeholder="e.g. London or Erbil"
+                 value={city}
+                 onChange={(e) => setCity(e.target.value)}
+                 className={inputCls}
+                 required
+               />
+             </div>
+
             <div className="space-y-1.5">
               <label className="block text-[10px] font-bold uppercase tracking-wider text-body-text">
-                Full Address
+                Street Address *
               </label>
               <div className="relative">
                 <MapPin className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-mute-text" />
                 <input
                   type="text"
-                  placeholder="e.g. 123 Main St, London"
+                  placeholder="e.g. 123 Main St"
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
                   className={`${inputCls} pl-9`}
+                  required
                 />
               </div>
             </div>
 
             <div className="space-y-1.5">
               <label className="block text-[10px] font-bold uppercase tracking-wider text-body-text">
-                Google Maps Embed or Share URL (Optional)
+                Google Maps Link or Embed Code (Optional)
               </label>
               <div className="relative">
                 <Globe className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-mute-text" />
                 <input
                   type="text"
-                  placeholder="e.g. https://www.google.com/maps/embed?pb=..."
+                  placeholder="Paste a Google Maps share link, full Google Maps URL, or iframe embed code."
                   value={googleMapsUrl}
                   onChange={(e) => setGoogleMapsUrl(e.target.value)}
                   className={`${inputCls} pl-9`}
                 />
               </div>
-              <p className="text-[10px] text-mute-text font-semibold">
-                Paste the Google Maps iframe embed code or link to override standard address geocoding.
+              <p className="text-[10px] text-mute-text font-semibold leading-relaxed">
+                Paste a Google Maps share link, full Google Maps URL, or iframe embed code.
               </p>
             </div>
 
-            {/* Live Google Maps Preview */}
-            {(googleMapsUrl.trim() || address.trim()) && (
-              <div className="rounded-xl overflow-hidden border border-ink/10 shadow-sm h-48">
-                <iframe
-                  title="Location Preview"
-                  width="100%"
-                  height="100%"
-                  style={{ border: 0 }}
-                  loading="lazy"
-                  referrerPolicy="no-referrer-when-downgrade"
-                  src={(() => {
-                    const embedUrl = getEmbeddableMapUrl(googleMapsUrl);
-                    if (embedUrl) return embedUrl;
-                    return address.trim() ? `https://maps.google.com/maps?q=${encodeURIComponent(address)}&output=embed&z=15` : "";
-                  })()}
-                />
-              </div>
-            )}
+            {/* Live Google Maps Preview / Graceful Fallback */}
+            {(() => {
+              const hasUrlInput = googleMapsUrl.trim().length > 0;
+              const hasAddressInput = address.trim().length > 0 || city.trim().length > 0;
+
+              if (!hasUrlInput && !hasAddressInput) return null;
+
+              if (hasUrlInput) {
+                const embedUrl = getEmbeddableMapUrl(googleMapsUrl);
+                if (embedUrl) {
+                  return (
+                    <div className="space-y-3.5">
+                      <div className="rounded-xl overflow-hidden border border-ink/10 shadow-sm h-48 bg-canvas-soft relative">
+                        <iframe
+                          title="Location Preview"
+                          width="100%"
+                          height="100%"
+                          style={{ border: 0 }}
+                          loading="lazy"
+                          referrerPolicy="no-referrer-when-downgrade"
+                          src={embedUrl}
+                        />
+                      </div>
+                      <a
+                        href={googleMapsUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1.5 text-[11px] font-bold text-ink hover:underline cursor-pointer bg-canvas-soft border border-ink/5 px-3.5 py-2 rounded-xl transition-colors hover:bg-canvas"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                        Open in Google Maps
+                      </a>
+                    </div>
+                  );
+                }
+
+                // Paste invalid/unsupported URL: Show friendly fallback box
+                return (
+                  <div className="bg-canvas border border-ink/5 p-5 rounded-xl text-center space-y-3 flex flex-col items-center justify-center shadow-xs">
+                    <div className="w-10 h-10 rounded-full bg-canvas-soft text-mute-text flex items-center justify-center border border-ink/5">
+                      <Map className="w-5 h-5" />
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-xs font-bold text-ink leading-normal">الرابط غير مدعوم</p>
+                      <p className="text-[11px] text-mute-text leading-relaxed max-w-xs">
+                        الرابط غير مدعوم، يرجى نسخ كود التضمين (Embed) من خرائط جوجل لضمان العرض بنجاح.
+                      </p>
+                    </div>
+                  </div>
+                );
+              }
+
+              // Address fallback preview
+              const fullAddressStr = [address, city, state, country].filter(Boolean).join(", ");
+              const embedUrl = `https://maps.google.com/maps?q=${encodeURIComponent(fullAddressStr)}&output=embed&z=15`;
+              const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddressStr)}`;
+
+              return (
+                <div className="space-y-3.5">
+                  <div className="rounded-xl overflow-hidden border border-ink/10 shadow-sm h-48 bg-canvas-soft relative">
+                    <iframe
+                      title="Location Address Preview"
+                      width="100%"
+                      height="100%"
+                      style={{ border: 0 }}
+                      loading="lazy"
+                      referrerPolicy="no-referrer-when-downgrade"
+                      src={embedUrl}
+                    />
+                  </div>
+                  <a
+                    href={mapsUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1.5 text-[11px] font-bold text-ink hover:underline cursor-pointer bg-canvas-soft border border-ink/5 px-3.5 py-2 rounded-xl transition-colors hover:bg-canvas"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    Open in Google Maps
+                  </a>
+                </div>
+              );
+            })()}
           </div>
 
           {/* ── Opening Hours Card ── */}
@@ -668,6 +750,18 @@ export default function SettingsPage() {
           </button>
         </div>
       </form>
+
+      {success && (
+        <div className="fixed bottom-6 right-6 z-50 bg-white border border-emerald-200 text-emerald-950 px-5 py-4 rounded-xl shadow-xl flex items-center gap-3 animate-fade-in max-w-sm">
+          <div className="w-8 h-8 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center flex-shrink-0">
+            <CheckCircle className="w-4.5 h-4.5" />
+          </div>
+          <div className="text-left">
+            <p className="text-xs font-bold text-ink leading-normal">تم تحديث الموقع الجغرافي بنجاح</p>
+            <p className="text-[10px] text-mute-text font-semibold mt-0.5">Settings saved successfully!</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

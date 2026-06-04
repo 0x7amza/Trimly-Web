@@ -192,16 +192,27 @@ function SyncErrorScreen({ message, onRetry }: { message: string; onRetry: () =>
 function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { activeBarber, shop, role, syncError, retrySync } = useB2BAuth();
+  const { activeBarber, shop, role, syncError, retrySync, isLoading, billingEnabled } = useB2BAuth();
   const { user } = useUser();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-canvas-soft">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm font-bold text-mute-text">Loading workspace...</p>
+        </div>
+      </div>
+    );
+  }
 
   // Real email always comes from the logged-in Clerk user
   const displayEmail = user?.primaryEmailAddress?.emailAddress ?? activeBarber?.email ?? "";
   const displayName  = user?.fullName || user?.username || activeBarber?.name || "";
 
-  // Subscription Guard: check if subscription is cancelled/expired/none
-  const hasSubscription = shop && ["ACTIVE", "TRIALING"].includes(shop.subscription?.status || "");
+  // Subscription Guard: check if subscription is cancelled/expired/none (bypass if Stripe billing is disabled)
+  const hasSubscription = !billingEnabled || (shop && ["ACTIVE", "TRIALING"].includes(shop.subscription?.status || ""));
   const isBillingPage = pathname.endsWith("/billing");
 
   // Nav items based on role
